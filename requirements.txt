@@ -1,0 +1,8 @@
+geopandas>=1.0
+pyogrio>=0.7
+pyarrow
+shapely>=2.0
+requests
+truststore
+py7zr>=1.0
+streamlit>=1.50

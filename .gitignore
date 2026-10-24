@@ -1,4 +1,11 @@
 data/
 cache/
-src/
 sorties/
+tmp_*/
+__pycache__/
+*.log
+prairimetre/
+app/
+.streamlit/
+requirements.txt/
+README.md/
