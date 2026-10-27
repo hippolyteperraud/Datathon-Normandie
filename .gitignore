@@ -4,8 +4,14 @@ sorties/
 tmp_*/
 __pycache__/
 *.log
-prairimetre/
-app/
 .streamlit/
 requirements.txt/
 README.md/
+data/raw/
+data/processed/
+*.geojson
+*.shp
+*.csv
+*.db
+__pycache__/
+.ipynb_checkpoints/
