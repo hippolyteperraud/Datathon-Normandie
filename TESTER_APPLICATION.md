@@ -10,7 +10,7 @@ résultats. Compter **environ 11 Go d'espace disque** (données + fichiers inter
 ```
 git clone https://github.com/hippolyteperraud/Datathon-Normandie.git
 cd Datathon-Normandie
-git checkout <nom-de-la-branche>
+git checkout test-app-v1
 ```
 
 ## 2. Installer les dépendances
