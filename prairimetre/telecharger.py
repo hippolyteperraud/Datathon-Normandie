@@ -264,9 +264,10 @@ def invalider(nom, annee=None, **params):
                   f"zonages_{annee}", f"rpg_insee_{annee}", f"cultures_*{annee}*"]
     elif nom == "communes":
         motifs = ["communes_v2", "region", "devenir_*", "origine_*", "zonages_*", "rpg_insee_*",
-                  "cultures_*"]
+                  "cultures_*", "carte_*"]
     elif nom in ZONAGES or nom == "plu_zonage":
-        motifs = [f"prio_{nom}", "prio_plu_zone_n" if nom == "plu_zonage" else "", "zonages_*"]
+        motifs = [f"prio_{nom}", "prio_plu_zone_n" if nom == "plu_zonage" else "", "zonages_*",
+                  "carte_captages" if nom == "aires_alimentation_captages" else ""]
     elif nom == "habitats_natura2000":
         motifs = ["habitats_prairiaux"]
     elif nom == "ocsge":

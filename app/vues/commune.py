@@ -3,9 +3,9 @@ Les parcelles sont extraites à la demande par le moteur."""
 import pandas as pd
 import streamlit as st
 
-from commun import (FLUX_COULEURS, MOTIF_MANQUANT, NEUTRE, bornes, contact_captage, deck,
-                    exiger_sorties, ha, hex_rgb, legende, nom_propre, nombre, pct, table,
-                    variation)
+from commun import (ACTIONS, FLUX_COULEURS, bornes, communes_moitie, contact_captage, deck,
+                    exiger_sorties, ha, hex_rgb, legende, motif_manquant, nom_propre, nombre, pct,
+                    table, variation)
 from humain import terrains
 from prairimetre.config import RECENT
 from prairimetre.indicateurs import parcelles_commune
@@ -17,7 +17,9 @@ t, k, cc = table("communes"), table("captages"), table("communes_captages")
 
 
 @st.cache_data(show_spinner="Le moteur extrait les parcelles de la commune…")
-def parcelles(insee):
+def parcelles(insee, annee):
+    """Parcelles de la commune ; l'année des résultats fait partie de la clé du cache, pour
+    qu'un nouveau registre soit pris en compte sans redémarrer l'application."""
     disparues, nouvelles = parcelles_commune(insee)
     return disparues.to_crs(4326), nouvelles.to_crs(4326)
 
@@ -29,10 +31,9 @@ def libelle(i):
 
 
 options = t.sort_values("nom_officiel").index.tolist()
-defaut = st.session_state.get("commune", t.rang_hectares.idxmin())
-insee = st.selectbox("Commune (nom ou code postal)", options, index=options.index(defaut),
-                     format_func=libelle)
-st.session_state["commune"] = insee
+if st.session_state.get("commune") not in options:  # 1re visite : la commune qui retourne le plus
+    st.session_state["commune"] = t.rang_hectares.idxmin()
+insee = st.selectbox("Commune (nom ou code postal)", options, key="commune", format_func=libelle)
 r = t.loc[insee]
 pp0, ppn = r[f"pp_{a0}"], r[f"pp_{an}"]
 
@@ -41,7 +42,7 @@ st.caption(", ".join([r.epci_nom, f"département {r.dep}"]
                      + ([f"Parc naturel régional {r.pnr}"] if isinstance(r.pnr, str) else [])))
 
 # --- Diagnostic ----------------------------------------------------------------------------------
-motif = MOTIF_MANQUANT.get(r.statut)
+motif = motif_manquant(r.statut)
 if motif:
     st.info(f"Pas de diagnostic pour cette commune. {motif} Prairies déclarées : {ha(pp0)} en "
             f"{a0}, {ha(ppn)} en {an}.")
@@ -69,9 +70,6 @@ st.markdown(f"#### Depuis {a0}, {r.nom_officiel} a {sens} {ha(abs(r.solde))} de 
                "normandes." if rangs else ""))
 if abs(r.solde) >= 1:
     st.caption(f"{ha(abs(r.solde))}, c'est à peu près {terrains(abs(r.solde))}.")
-if r.mecanisme == "stable ou en gain":
-    st.success("Ici, les prairies tiennent : les éleveurs de la commune peuvent servir d'exemple "
-               "aux territoires voisins.")
 
 c1, c2, c3 = st.columns(3)
 c1.metric(f"Prairies déclarées en {an}", ha(ppn), f"{variation(ppn - pp0)} depuis {a0}",
@@ -97,8 +95,42 @@ st.caption(f"Depuis {a0}, {ha(r.devenues_culture)} ont été retournés en cultu
 # --- Que faire, avec qui ---------------------------------------------------------------------------
 with st.container(border=True):
     st.markdown("**Que faire, avec qui**")
-    lignes = [f"{r.levier[0].upper()}{r.levier[1:]}.",
-              f"Intercommunalité : {r.epci_nom}."]
+    # L'action découle du mécanisme dominant de ses pertes (calculé par le moteur) : les mêmes
+    # noms que les moyens d'agir de la page Où agir et la vérification de la Carte des données
+    action = next(a for a in ACTIONS.values() if a.get("mecanisme") == r.mecanisme)
+    net_culture = r.devenues_culture - r.venues_culture
+    net_sortie = r.devenues_non_declare - r.venues_non_declare
+    if r.mecanisme == "retournement":
+        pourquoi_ = (f"en solde depuis {a0} (retours déduits), la commune a perdu "
+                     f"{ha(net_culture)} de prairies au profit des cultures, plus que par les "
+                     f"sorties de la déclaration ({ha(max(net_sortie, 0))}) : la perte est "
+                     "certaine.")
+        if insee in communes_moitie(t):
+            pourquoi_ += (f" Elle fait partie des {len(communes_moitie(t))} communes qui portent la "
+                          f"moitié du retournement de {r0}–{an}.")
+        if pd.notna(r.part_regle) and r.part_regle < 0.005:
+            pourquoi_ += " Aucune de ses prairies n'est couverte par une règle qui encadre le labour."
+        elif pd.notna(r.part_regle) and r.part_regle < 0.5:
+            pourquoi_ += (f" Seulement {pct(r.part_regle, 0)} de ses prairies sont couvertes par "
+                          "une règle qui encadre le labour.")
+        quoi = ("avec la chambre d'agriculture : mesures agro-environnementales, paiements pour "
+                "services environnementaux.")
+    elif r.mecanisme == "sortie de la déclaration":
+        pourquoi_ = (f"en solde depuis {a0} (retours déduits), {ha(net_sortie)} de prairies sont "
+                     f"sorties de la déclaration, "
+                     f"{'autant' if round(net_sortie) == round(net_culture) else 'plus'} que les "
+                     f"{ha(max(net_culture, 0))} perdues au "
+                     "profit des cultures : on ne sait pas si l'herbe est encore là.")
+        quoi = "sur photo aérienne ou sur place, avant d'agir."
+    else:
+        voisines = t[(t.epci == r.epci) & (t.statut == "calculé") & (t.retourne_recent > 0)] \
+            .sort_values("retourne_recent", ascending=False).nom_officiel.head(3)
+        pourquoi_ = (f"la commune a {'gagné des' if r.solde > 0 else 'gardé ses'} prairies "
+                     f"depuis {a0} ({ha(r.solde, signe=True)}).")
+        quoi = (": faire témoigner ses éleveurs dans les communes voisines qui retournent"
+                + (f", par exemple {', '.join(voisines)}." if len(voisines) else "."))
+    st.markdown(f"**{action['titre']}** {quoi}  \nPourquoi : {pourquoi_}")
+    lignes = [f"Intercommunalité : {r.epci_nom}."]
     if isinstance(r.pnr, str):
         lignes.append(f"Parc naturel régional {r.pnr} : animation et charte du parc.")
     aires = cc[(cc.insee == insee) & (cc.prairies_ha >= 10)] \
@@ -127,7 +159,7 @@ if voir:
     vue = st.segmented_control("Afficher", list(VUES), default=list(VUES)[0],
                                label_visibility="collapsed") or list(VUES)[0]
     st.caption(VUES[vue])
-    disparues, nouvelles = parcelles(insee)
+    disparues, nouvelles = parcelles(insee, an)
     nouvelle = vue == list(VUES)[1]
     if nouvelle:
         noms = {"culture": "était une culture", "non déclaré": "n'était pas déclarée",
@@ -136,13 +168,13 @@ if voir:
         noms = {"culture": "retournée en culture", "non déclaré": "sortie de la déclaration",
                 "prairie temporaire": "devenue prairie temporaire",
                 "prairie permanente": "toujours en prairie"}
-    couleurs = {noms[c]: FLUX_COULEURS[c] for c in FLUX_COULEURS} | {
-        "toujours en prairie": "#d9d8d2", "autre (bois, lande…)": NEUTRE}
+    autre = "autre (bois, lande…)"
+    couleurs = {noms[c]: FLUX_COULEURS[c] for c in noms} | {autre: FLUX_COULEURS["autre"]}
     g, col = (nouvelles.copy(), "origine") if nouvelle else (disparues.copy(), "devenir")
     if g.empty:
         st.info("Aucune parcelle à afficher.")
     else:
-        g["libelle"] = g[col].map(lambda x: noms.get(x, "autre (bois, lande…)"))
+        g["libelle"] = g[col].map(lambda x: noms.get(x, autre))
         g["couleur"] = [hex_rgb(couleurs[x]) for x in g.libelle]
         g["t_ha"] = g.ha.map(lambda x: ha(x) if x >= 1 else f"{x:.2f} ha".replace(".", ","))
         st.pydeck_chart(deck([(g[["libelle", "t_ha", "couleur", "geometry"]], "parcelles")], g,

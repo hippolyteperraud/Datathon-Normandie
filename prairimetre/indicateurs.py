@@ -27,13 +27,12 @@ GROUPES_CULTURES = {
     6: "tournesol", 7: "autres oléagineux", 8: "protéagineux", 9: "lin, chanvre (fibres)",
     11: "gel", 14: "riz", 15: "légumineuses à grains", 16: "fourrages annuels (trèfle, luzerne…)",
     24: "autres cultures industrielles", 25: "légumes ou fleurs"}
+# Une action par mécanisme : les mêmes noms que dans l'application (Où agir, Carte des données)
 LEVIERS = {
-    "retournement": "animation agricole, MAEC et paiements pour services environnementaux ; "
-                    "contrôle là où une règle interdit le retournement",
-    "sortie de la déclaration": "vérifier sur le terrain avant d'agir : l'herbe est souvent encore "
-                                "là, et la statistique agricole ne confirme pas toutes ces pertes",
-    "stable ou en gain": "valoriser les pratiques et les éleveurs (exemple à diffuser)",
-    "trop peu de prairies": "aucun",
+    "retournement": "payer le maintien des prairies",
+    "sortie de la déclaration": "vérifier d'abord",
+    "stable ou en gain": "s'appuyer sur les exemples",
+    "trop peu de prairies": "aucune (trop peu de prairies)",
 }
 
 

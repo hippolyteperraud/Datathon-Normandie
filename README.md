@@ -25,9 +25,9 @@ Règle de l'application : une donnée n'est affichée que si elle change une dé
 
 Trois questions, pas une de plus :
 
-1. **Combien perd-on, et pourquoi l'alerte ne sonne plus ?** → page Synthèse
-2. **Les protections retiennent-elles les prairies ?** (interaction humain-nature, sujet 2) → Synthèse, preuves dans Données et méthode
-3. **Où agir, et avec qui ?** → Prairies : où agir, Eau potable, Ma commune
+1. **Combien perd-on, et pourquoi l'alerte ne sonne plus ?** → Où agir (en-tête et moyen 1)
+2. **Les protections retiennent-elles les prairies ?** (interaction humain-nature, sujet 2) → Où agir (moyen 2), preuves dans Données et méthode
+3. **Où agir, et avec qui ?** → Où agir, Ma commune, Carte des données (où vérifier d'abord)
 
 **Règle** : une donnée, un calcul ou un écran qui ne répond à aucune des trois questions sort
 du projet. Les données écartées sont rangées dans `data/_hors_perimetre/` (déplacées, pas
@@ -88,20 +88,24 @@ python -m streamlit run app/accueil.py   # puis ouvrir http://localhost:8501
 
 | Page | Question | Pour qui |
 |---|---|---|
-| Synthèse | Trois décisions, chacune avec le chiffre qui la fonde et qui la prend : piloter 2030 en hectares, financer la prairie ordinaire, concentrer l'effort | Région, jury |
-| Prairies : où agir | Où financer le maintien (critère : hectares, taux, zonages d'enjeux), où vérifier d'abord, où trouver des exemples ; communes ou intercommunalités | Région, chambre d'agriculture, DDT(M), PNR |
-| Eau potable | Quelles aires de captage perdent leurs prairies, et qui alerter ? | Agence de l'eau, syndicats d'eau, DDT(M) |
-| Ma commune | Qu'a perdu la commune, comment, que faire et avec qui ? | Élus, EPCI, habitants |
-| Données et méthode | Preuves, définitions, sources et données manquantes, lexique, moteur | Jury, experts, équipe |
+| Où agir (accueil) | Trois moyens d'agir : 1. suivre l'objectif 2030 en hectares, 2. payer le maintien des prairies là où l'on retourne (communes, intercommunalités ou aires de captage, avec leurs interlocuteurs), 3. s'appuyer sur les communes qui gardent leurs prairies. Pour chacun : le conseil, pourquoi, pour qui, où, l'indicateur de suivi | Région, chambre d'agriculture, DDT(M), PNR, syndicats d'eau, Agences de l'eau |
+| Ma commune | Qu'a perdu la commune, comment, quelle action (la même que dans Où agir) et avec qui ? | Élus, EPCI, habitants |
+| Carte des données | Ce que l'outil voit, commune par commune : en noir, là où une source ne dit rien (registre PAC, enquête au sol LUCAS, habitats Natura 2000) ; et où vérifier d'abord les prairies sorties de la déclaration | Région, DDT(M), jury, experts |
+| Données et méthode | Preuves, tests, définitions, sources, moteur | Jury, experts, équipe |
+| Lexique | Les mots de l'outil | Tous |
 
-Barre latérale : lexique, et interrupteur du fond de
+Barre latérale : interrupteur du fond de
 carte (à couper sans internet : les cartes restent lisibles).
 
 L'appli lit les tables de `sorties/` (relues dès que le moteur les recalcule) et appelle le
 moteur de deux façons : en l'important (`parcelles_commune`) et en lançant ses commandes
 (`python -m prairimetre ...`).
 Pour ajouter une page : un fichier dans `app/vues/`, une ligne dans `app/accueil.py`.
-Données manquantes : jamais de case vide, toujours la raison (voir `app/commun.py`).
+Données manquantes : jamais de case vide, toujours la raison (voir `app/commun.py`) ; sur les
+cartes, toujours en noir.
+Aucun conseil n'est écrit à la main : chaque phrase est calculée à partir de `sorties/`, et suit
+donc chaque nouveau registre. Les années affichées sont lues dans `sorties/` ; si un registre plus
+récent est téléchargé sans être calculé, chaque page le signale.
 Illustration, chiffres à taille humaine et signature : `app/humain.py`. Thème : `.streamlit/config.toml`.
 Après une modification de `app/commun.py` ou `app/humain.py`, relancer le serveur.
 

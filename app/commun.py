@@ -14,14 +14,19 @@ import pandas as pd
 import pydeck as pdk
 import streamlit as st
 
-from prairimetre.config import CACHE, MIN_HA, RACINE, SORTIES, annees
+from prairimetre.config import CACHE, DATA, MIN_HA, RACINE, RECENT, SORTIES, annees
+from prairimetre.sources import SOURCES
 
 TABLES = ["communes", "serie_region", "captages", "communes_captages", "bilan_direct",
           "cultures_destination", "objectif"]
 
 # Chiffre officiel (vérifié sur Légifrance le 22/10/2026)
 OFFICIEL = {"perte_ha": -59703, "perte_pct": -8.9, "ratio_evol_pct": -1.97,
+            "date": "septembre 2026",
             "source": "Arrêté du 11 septembre 2026, JORF n° 0218 du 18 septembre 2026"}
+# Baisse du ratio de prairies permanentes au-delà de laquelle la PAC soumet les retournements à
+# autorisation (règlement UE 2021/2115, BCAE 1)
+SEUIL_RATIO_PCT = 5
 
 LEXIQUE = {
     "Aire d'alimentation de captage": "surface sur laquelle l'eau de pluie s'infiltre avant de "
@@ -58,14 +63,39 @@ LEXIQUE = {
 
 DEPARTEMENTS = {"14": "Calvados", "27": "Eure", "50": "Manche", "61": "Orne",
                 "76": "Seine-Maritime"}
+# « les communes du Calvados », « de l'Eure »... (filtre Territoire des pages)
+DE_TERRITOIRE = {"Normandie": "de Normandie", "14": "du Calvados", "27": "de l'Eure",
+                 "50": "de la Manche", "61": "de l'Orne", "76": "de la Seine-Maritime"}
 
 # Palette catégorielle : contraste ≥ 3:1 sur les fonds clair et sombre (vert assombri pour
-# l'atteindre) ; chaque couleur est toujours doublée d'un libellé. Bleu séquentiel clair -> foncé.
+# l'atteindre) ; chaque couleur est toujours doublée d'un libellé.
 CAT = ["#2a78d6", "#eb6834", "#169c6c"]
 NEUTRE = "#c3c2b7"
-FOND = "#ecebe6"  # communes hors sélection ou sans indicateur
-FLUX_COULEURS = {"culture": CAT[0], "non déclaré": CAT[1], "prairie temporaire": CAT[2]}
-SEQ = ["#cde2fb", "#9ec5f4", "#6da7ec", "#3987e5", "#256abf", "#184f95", "#0d366b"]
+# Cartes (fond de carte blanc) : les mêmes trois états partout
+NOIR = "#000000"     # pas de donnée : l'outil ne voit rien ici
+HORS = "#a9a89f"     # des données, mais hors de la liste affichée
+GRIS = "#6b6a65"     # trop peu de données pour conclure
+# Parcelles de « Ma commune » : une couleur par devenir, lisible sur fond blanc
+FLUX_COULEURS = {"culture": "#c2452d", "non déclaré": "#f0a202", "prairie temporaire": "#2a78d6",
+                 "prairie permanente": "#2e7d4f", "autre": "#5b5a55"}
+
+# Les trois moyens d'agir (page Où agir) et la vérification (page Carte des données). Une
+# commune relève de l'un d'eux selon le mécanisme dominant de ses pertes, calculé par le moteur.
+ACTIONS = {
+    "suivre": {"titre": "Suivre l'objectif en hectares", "couleur": CAT[0],
+               "pour": "la Région, les DDT(M)"},
+    "payer": {"titre": "Payer le maintien des prairies", "couleur": CAT[0],
+              "pour": "la Région, la chambre d'agriculture, les Agences de l'eau, les "
+                      "intercommunalités",
+              "mecanisme": "retournement"},
+    "exemple": {"titre": "S'appuyer sur les exemples", "couleur": CAT[2],
+                "pour": "la chambre d'agriculture, les intercommunalités, les parcs naturels "
+                        "régionaux",
+                "mecanisme": "stable ou en gain"},
+    "verifier": {"titre": "Vérifier d'abord", "couleur": CAT[1],
+                 "pour": "la Région, les DDT(M)",
+                 "mecanisme": "sortie de la déclaration"},
+}
 
 
 # --- Formats ----------------------------------------------------------------------------------
@@ -157,25 +187,67 @@ def _evaluation(nom, _date, **kw):
 
 
 def bornes():
-    A = annees()
-    return A[0], A[-1]
+    """Première et dernière année des résultats affichés, lues dans sorties/ : les pages restent
+    cohérentes même si un registre vient d'être téléchargé sans être encore calculé."""
+    f = SORTIES / "communes.csv"
+    if f.exists():
+        A = sorted(int(c[3:]) for c in pd.read_csv(f, nrows=0).columns
+                   if re.fullmatch(r"pp_\d{4}", c))
+    else:
+        A = annees()
+    return (A[0], A[-1]) if A else (None, None)
 
 
 def exiger_sorties():
-    """Arrête la page avec un message si le moteur n'a pas encore produit ses tables."""
+    """Arrête la page avec un message si le moteur n'a pas encore produit ses tables ; prévient
+    si un registre plus récent que les résultats est en local (recalcul à lancer)."""
     m = manquantes()
     if m:
         st.warning("Les résultats du moteur sont incomplets (manquent : " + ", ".join(m)
                    + "). Lancez « Recalculer » dans Données et méthode → Moteur.")
         st.page_link("vues/methode.py", label="Données et méthode", icon=":material/settings:")
         st.stop()
+    A, an = annees(), bornes()[1]
+    if A and A[-1] > an:
+        st.warning(f"Le registre {A[-1]} est téléchargé, mais les résultats s'arrêtent à {an}. "
+                   "Lancez « Recalculer les indicateurs » puis « Évaluer » dans Données et "
+                   "méthode → Moteur.")
 
 
-MOTIF_MANQUANT = {"calculé": None,
-                  f"moins de {MIN_HA} ha de prairies en {annees()[0]}":
-                      f"Trop peu de prairies en {annees()[0]} (moins de {MIN_HA} ha) pour qu'un "
-                      "taux ait un sens.",
-                  "aucune prairie": "Aucune prairie permanente déclarée dans la commune."}
+def communes_moitie(t):
+    """Les communes, de la plus touchée à la moins touchée, qui portent ensemble la moitié du
+    retournement récent (index de la table communes)."""
+    ret = t[t.statut == "calculé"].retourne_recent.sort_values(ascending=False)
+    return ret.index[:int((ret.cumsum() / ret.sum() < 0.5).sum() + 1)]
+
+
+def comparaison(zonage):
+    """Retourne-t-on « moins », « autant » ou « plus » dans ce zonage qu'à côté, dans la même
+    commune ? Tranché sur toutes les périodes testées par le moteur : « autant » si les rapports
+    encadrent 1. Renvoie (sens, rapports), ou (None, série vide) si l'évaluation manque."""
+    rob, z = evaluation("robustesse"), evaluation("zonages", index_col=0)
+    v = rob[rob.zonage == zonage].rapport_meme_commune if rob is not None else pd.Series()
+    if v.empty and z is not None and zonage in z.index:
+        v = pd.Series([z.loc[zonage, "rapport_meme_commune"]])
+    if v.empty:
+        return None, v
+    return ("moins" if v.max() < 1 else "plus" if v.min() > 1 else "autant"), v
+
+
+def motif_manquant(statut):
+    """Pourquoi une commune n'a pas de diagnostic, en clair ; None si elle en a un."""
+    if statut == "aucune prairie":
+        return "Aucune prairie permanente déclarée dans la commune."
+    if statut.startswith("moins de"):
+        return f"Trop peu de prairies ({statut}) pour qu'un taux ait un sens."
+    return None
+
+
+def date_source(nom):
+    """Date du fichier d'une source dans data/ (0 s'il n'y est pas) : sert de clé aux caches de
+    l'appli, qui se refont dès que la source est réimportée."""
+    f = DATA / SOURCES[nom]["fichier"]
+    return f.stat().st_mtime if f.exists() else 0
 
 
 # --- Cartes ------------------------------------------------------------------------------------
@@ -192,9 +264,23 @@ def _sur_disque(nom, fabrique):
     return g
 
 
-@st.cache_data(show_spinner="Préparation de la carte…")
 def communes_carte():
     """Contours des communes simplifiés (≈ 80 m) en WGS84, légers pour le navigateur."""
+    return _communes_carte(date_source("communes"))
+
+
+def epci_carte():
+    """Contours des intercommunalités (union de leurs communes), simplifiés, en WGS84."""
+    return _epci_carte(date_source("communes"))
+
+
+def captages_carte():
+    """Partie normande de chaque aire de captage, simplifiée, en WGS84."""
+    return _captages_carte(date_source("aires_alimentation_captages"))
+
+
+@st.cache_data(show_spinner="Préparation de la carte…")
+def _communes_carte(_date):
     def f():
         from prairimetre.donnees import communes
         g = communes()[["insee", "nom_officiel", "dep", "epci", "geometry"]].copy()
@@ -204,8 +290,7 @@ def communes_carte():
 
 
 @st.cache_data(show_spinner="Préparation de la carte…")
-def epci_carte():
-    """Contours des intercommunalités (union de leurs communes), simplifiés, en WGS84."""
+def _epci_carte(_date):
     def f():
         from prairimetre.donnees import communes
         g = communes()[["epci", "geometry"]].dissolve("epci").reset_index()
@@ -215,8 +300,7 @@ def epci_carte():
 
 
 @st.cache_data(show_spinner="Préparation de la carte des captages…")
-def captages_carte():
-    """Partie normande de chaque aire de captage, simplifiée, en WGS84."""
+def _captages_carte(_date):
     def f():
         from prairimetre.donnees import region, zonage
         a = zonage("aires_alimentation_captages")[["cdaac", "geometry"]].copy()
@@ -234,11 +318,11 @@ def hex_rgb(h, alpha=220):
     return [int(h[i:i + 2], 16) for i in (0, 2, 4)] + [alpha]
 
 
-def couleur_sequentielle(v, vmax, alpha=220):
-    if pd.isna(v) or vmax <= 0:
-        return hex_rgb(FOND, alpha)
-    i = min(int(v / vmax * (len(SEQ) - 1) + 0.5), len(SEQ) - 1)
-    return hex_rgb(SEQ[max(i, 0)], alpha)
+def couleurs_liste(ids, dans_liste, avec_donnees, couleur):
+    """Couleur de chaque territoire d'une carte de liste : celle de l'action s'il est dans la
+    liste, gris s'il a des données mais reste hors liste, noir s'il n'en a pas."""
+    return [hex_rgb(couleur) if i in dans_liste else hex_rgb(HORS, 200) if i in avec_donnees
+            else hex_rgb(NOIR, 230) for i in ids]
 
 
 def deck(couches, vue_sur, info, hauteur=560):

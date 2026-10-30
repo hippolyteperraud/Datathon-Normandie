@@ -52,10 +52,9 @@ machine : elle n'est pas accessible depuis le réseau.
 
 | Page | Ce qu'elle montre |
 |---|---|
-| Synthèse | Les trois recommandations et leurs chiffres |
-| Où agir | Les communes, intercommunalités ou aires de captage à cibler |
-| Ma commune | Le diagnostic d'une commune et la carte de ses parcelles |
-| Carte des données | Ce que l'outil voit dans chaque commune ; en noir, là où il ne voit rien |
+| Où agir (accueil) | Les trois moyens d'agir, chacun avec son conseil, ses territoires et son indicateur de suivi |
+| Ma commune | Le diagnostic d'une commune, l'action qui s'y applique, la carte de ses parcelles |
+| Carte des données | Ce que l'outil voit dans chaque commune (en noir, là où il ne voit rien), et où vérifier d'abord |
 | Données et méthode | Les preuves, les tests, les sources, et la mise à jour des données |
 
 Sans connexion internet, désactiver « Fond de carte » dans la barre latérale : les cartes

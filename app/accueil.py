@@ -21,8 +21,7 @@ st.set_page_config(page_title="Prairimètre", page_icon=":material/grass:", layo
 st.logo(str(ICI / "assets" / "logo.svg"), size="large")
 
 page = st.navigation([
-    st.Page("vues/synthese.py", title="Synthèse", icon=":material/home:", default=True),
-    st.Page("vues/prairies.py", title="Où agir", icon=":material/agriculture:"),
+    st.Page("vues/prairies.py", title="Où agir", icon=":material/agriculture:", default=True),
     st.Page("vues/commune.py", title="Ma commune", icon=":material/location_city:"),
     st.Page("vues/donnees.py", title="Carte des données", icon=":material/map:"),
     st.Page("vues/methode.py", title="Données et méthode", icon=":material/fact_check:"),

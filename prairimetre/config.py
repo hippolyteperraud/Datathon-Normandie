@@ -7,7 +7,7 @@ RACINE = Path(__file__).resolve().parents[1]
 # Dossiers réglables (ex. tester un import complet sans toucher aux données en place)
 DATA = Path(os.environ.get("PRAIRIMETRE_DATA", RACINE / "data"))
 CACHE = Path(os.environ.get("PRAIRIMETRE_CACHE", RACINE / "cache"))
-SORTIES = RACINE / "sorties"
+SORTIES = Path(os.environ.get("PRAIRIMETRE_SORTIES", RACINE / "sorties"))
 MANIFEST = DATA / "manifest.json"
 
 REGION = "R28"                       # code de la Normandie dans les archives IGN
@@ -33,4 +33,4 @@ def annees():
 
 
 for _d in (CACHE, SORTIES):
-    _d.mkdir(exist_ok=True)
+    _d.mkdir(parents=True, exist_ok=True)
