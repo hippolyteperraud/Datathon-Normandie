@@ -100,7 +100,7 @@ FICHIERS = {
         "carte-de-synthese-des-habitats-dans-les-sites-natura-2000-de-normandie-occidentale-14-50-"
         "61-version-20260325", archive_atom), ".zip"),
 }
-ORDRE = (["communes", "epci_noms", "rpg"] + [n for n in FICHIERS if n != "communes"]
+ORDRE = (["communes", "epci_noms", "codes_postaux", "rpg"] + [n for n in FICHIERS if n != "communes"]
          + ["ocsge"] + ZONAGES_WFS + ["pp_officiel"])
 
 
