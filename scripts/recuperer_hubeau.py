@@ -1,6 +1,13 @@
 import os
 import pandas as pd
 
+"""
+ Télécharge les stations des cinq départements normands — 14, 27, 50, 61 et 76 — et 
+  les enregistre dans data/raw/qualite_eau_hubeau/stations_normandie.csv. 
+
+ Ce fichier décrit les stations et leurs coordonnées ; il ne contient pas les 
+   résultats d’analyses.
+"""
 os.makedirs("data/raw/qualite_eau_hubeau", exist_ok=True)
 
 deps = ["14", "27", "50", "61", "76"]
@@ -10,7 +17,7 @@ print("Téléchargement direct des stations Hubeau (Format CSV) pour la Normandi
 
 for dep in deps:
     url = f"https://hubeau.eaufrance.fr/api/v2/qualite_rivieres/station_pc.csv?code_departement={dep}"
-    
+
     try:
         df_dep = pd.read_csv(url, sep=';', on_bad_lines='skip', low_memory=False)
         dfs.append(df_dep)

@@ -7,11 +7,11 @@ print("Interrogation de l'API WFS des Zones Vulnérables (cela peut prendre quel
 
 try:
     gdf_zv = gpd.read_file(url_wfs)
-    
+
     print(f"Succès ! Nombre total de zones chargées : {len(gdf_zv)}")
     print("Aperçu des colonnes :", gdf_zv.columns.tolist())
     print(gdf_zv.head(3))
-    
+
     os.makedirs("data/raw/zones_vulnerables", exist_ok=True)
     output_gpkg = "data/raw/zones_vulnerables/zones_vulnerables_france.gpkg"
     gdf_zv.to_file(output_gpkg, driver="GPKG")
