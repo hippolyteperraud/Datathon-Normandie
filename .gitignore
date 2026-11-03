@@ -2,10 +2,8 @@ data/
 cache/
 sorties/
 tmp_*/
+.venv/
 __pycache__/
+*.py[cod]
 *.log
-prairimetre/
-app/
-.streamlit/
-requirements.txt/
-README.md/
+.ipynb_checkpoints/

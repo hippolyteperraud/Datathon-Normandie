@@ -165,3 +165,19 @@ def ocsge(dep, millesime):
     return en_cache(f"ocsge_{dep}_{millesime}",
                     lambda: lire(DATA / f"ocsge/ocsge_{dep}_{millesime}.gpkg",
                                  columns=["code_cs", "code_us"]))
+
+
+def theia_oso(annee):
+    """Couche d'occupation des sols Theia OSO issue de Sentinel-2 (classes herbacées 221/222)."""
+    def f():
+        chemin = DATA / SOURCES["theia_oso"]["fichier"].format(annee=annee)
+        return lire(chemin, columns=["classe", "libelle"])
+    return en_cache(f"theia_oso_{annee}", f)
+
+
+def copernicus_grassland():
+    """Couche européenne Copernicus HRL Grassland (10 m)."""
+    def f():
+        chemin = DATA / SOURCES["copernicus_grassland"]["fichier"]
+        return lire(chemin, columns=["gra_status", "gra_density"])
+    return en_cache("copernicus_grassland", f)

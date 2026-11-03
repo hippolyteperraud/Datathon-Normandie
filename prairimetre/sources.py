@@ -112,6 +112,18 @@ SOURCES = {
         "priorite/znieff1.gpkg", DREAL,
         "https://www.data.gouv.fr/datasets/zones-naturelles-dinteret-ecologique-"
         "faunistique-et-floristique-de-type-1-de-normandie"),
+
+    # --- Télédétection satellitaire multi-temporelle (Sentinel-2 / Theia / Copernicus) --------
+    "theia_oso": _manuel(
+        "satellite/theia_oso_normandie_{annee}.gpkg", "CESBIO / Theia (CNES)",
+        "https://theia.cnes.fr/atdistrib/rocket/#/search?collection=OSO",
+        licence="Licence Ouverte 2.0 (Etalab)",
+        colonnes=["classe", "libelle"]),
+    "copernicus_grassland": _manuel(
+        "satellite/copernicus_hrl_grassland.gpkg", "Copernicus Land Monitoring Service (CLMS / EEA)",
+        "https://land.copernicus.eu/pan-european/high-resolution-layers/grassland",
+        licence="Copernicus Open Access Policy",
+        colonnes=["gra_status", "gra_density"]),
 }
 
 ANNUELLES = [n for n, s in SOURCES.items() if s["annuelle"]]
