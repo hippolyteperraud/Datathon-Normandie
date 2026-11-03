@@ -396,7 +396,12 @@ with moteur:
     # 1. Nouveau RPG : un bouton
     with st.container(border=True):
         st.markdown("**Un nouveau registre parcellaire est sorti ?**")
-        st.markdown(f"Les données vont aujourd'hui de **{A[0]} à {A[-1]}**. Le moteur cherche le "
+        texte_annees = (
+            f"Les données vont aujourd'hui de **{A[0]} à {A[-1]}**."
+            if A
+            else "Aucun millésime RPG n'est encore installé en local (le suivi de base porte de 2018 à 2025)."
+        )
+        st.markdown(f"{texte_annees} Le moteur cherche le "
                     "dernier millésime publié par l'IGN, le télécharge, le contrôle et recalcule "
                     "tout (environ une heure : téléchargement, calcul, évaluation).")
         if st.button("Chercher et installer le dernier millésime", type="primary",
@@ -433,7 +438,8 @@ with moteur:
             chemin = chemin.strip().strip('"').strip("'")  # « Copier en tant que chemin » Windows
         options = []
         if "{annee}" in s["fichier"]:
-            options += ["--annee", st.number_input("Année", 2015, 2100, A[-1] + 1)]
+            annee_defaut = (A[-1] + 1) if A else 2025
+            options += ["--annee", st.number_input("Année", 2015, 2100, annee_defaut)]
         if source == "ocsge":
             o1, o2 = st.columns(2)
             options += ["--dep", o1.selectbox("Département", ["14", "27", "50", "61", "76"]),
