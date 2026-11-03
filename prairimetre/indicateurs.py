@@ -39,6 +39,10 @@ LEVIERS = {
 def periodes():
     """Début, fin et début de la période récente."""
     A = annees()
+    if not A:
+        return 2018, 2025, 2022
+    if len(A) == 1:
+        return A[0], A[0], A[0]
     return A[0], A[-1], A[-1] - RECENT
 
 
@@ -116,6 +120,9 @@ def _flux(a, b, par=None):
 def serie():
     """Année par année, en Normandie : surface de départ et d'arrivée, flux (graphique annuel)."""
     A = annees()
+    if len(A) < 2:
+        cols = [f"sortie_{FLUX[c]}" for c in FLUX] + [f"entree_{FLUX[c]}" for c in FLUX]
+        return pd.DataFrame(columns=["depart", "arrivee", "solde"] + cols).rename_axis("periode")
     t = pd.concat({f"{a}-{a + 1}": _flux(a, a + 1) for a in A[:-1]}, names=["periode"])
     return t.droplevel(-1)
 
@@ -157,8 +164,12 @@ def cultures_destination():
 def objectif():
     """Trajectoire vers l'objectif 2030 : surface de référence et écart."""
     s = serie()
+    A = annees()
+    if len(A) < 2 or len(s) == 0:
+        return pd.DataFrame(columns=["annee", "prairies_ha", "reference_ha", "annee_reference",
+                                     "annee_objectif", "ecart_ha"])
     niveaux = pd.Series(list(s.depart) + [s.arrivee.iloc[-1]],
-                        index=[int(p[:4]) for p in s.index] + [annees()[-1]])
+                        index=[int(p[:4]) for p in s.index] + [A[-1]])
     ref = niveaux.get(ANNEE_REFERENCE_OBJECTIF)
     return pd.DataFrame({"annee": niveaux.index, "prairies_ha": niveaux.values,
                          "reference_ha": ref, "annee_reference": ANNEE_REFERENCE_OBJECTIF,
@@ -290,13 +301,11 @@ def _intervenant(texte):
 
 
 def table_captages(t):
-    """Une ligne par aire d'alimentation de captage : qui la gère, ses prairies, ce qu'elle perd.
-    Seule la partie normande de chaque aire est comptée."""
-    from .donnees import region
     a0, an, r0 = periodes()
-    D, Dr = devenir(a0, an), devenir(r0, an)
-    Z0, Zr, Zn = zonages_annee(a0), zonages_annee(r0), normandie(zonages_annee(an))
-    debut = pd.DataFrame({"aac": Z0.aac, "insee": Z0.insee, "ha": Z0.ha, "retourne": D.culture.values,
+    Zn, Dr = zonages_annee(an), devenir(r0, an)
+    Zr, D = zonages_annee(r0), devenir(a0, an)
+    debut = pd.DataFrame({"aac": Zr.aac, "insee": Zr.insee, "ha": Zr.ha,
+                          "retourne": D.culture.values,
                           "sortie": D["non déclaré"].values}).dropna(subset=["aac", "insee"])
     recent = pd.DataFrame({"aac": Zr.aac, "insee": Zr.insee, "ha": Zr.ha,
                            "retourne": Dr.culture.values}).dropna(subset=["aac", "insee"])
@@ -368,6 +377,14 @@ def parcelles_commune(insee):
 
 def calculer():
     """Écrit toutes les tables du compteur et de la boussole dans sorties/."""
+    A = annees()
+    if len(A) < 2:
+        print(f"\n[INFO] Pour calculer les flux temporels (2018 -> 2025), au moins 2 millésimes RPG sont requis.")
+        print(f"       Actuellement en local : {A}.")
+        print(f"       Téléchargement conseillé du millésime de départ : python -m prairimetre telecharger rpg --annee 2018")
+        serie().to_csv(SORTIES / "serie_region.csv")
+        return None
+
     serie().to_csv(SORTIES / "serie_region.csv")
     bilan_direct().to_csv(SORTIES / "bilan_direct.csv")
     cultures_destination().to_csv(SORTIES / "cultures_destination.csv")
