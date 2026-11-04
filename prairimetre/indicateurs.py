@@ -18,7 +18,7 @@ import numpy as np
 import pandas as pd
 
 from .config import ANNEE_OBJECTIF, ANNEE_REFERENCE_OBJECTIF, CACHE, MIN_HA, RECENT, SORTIES, annees
-from .donnees import FAMILLES, ZONAGES, communes, prairies, rpg, zonage
+from .donnees import FAMILLES, ZONAGES, communes, prairies, region, rpg, zonage
 from .suivi import CATEGORIES, avec_commune, categorie, croiser, devenir, origine
 
 FLUX = {"culture": "culture", "non déclaré": "non_declare", "prairie temporaire": "temporaire"}
@@ -326,16 +326,32 @@ def table_captages(t):
     recent = pd.DataFrame({"aac": Zr.aac, "insee": Zr.insee, "ha": Zr.ha,
                            "retourne": Dr.culture.values}).dropna(subset=["aac", "insee"])
     a = zonage("aires_alimentation_captages")
-    a = a.assign(cdaac=a.cdaac.astype(str)).drop_duplicates("cdaac").set_index("cdaac")
-    surface = a.geometry.intersection(region().geometry.iloc[0]).area / 1e4
+    if len(a) == 0:
+        return pd.DataFrame(columns=[
+            "nom", "maitre_ouvrage", "service_etat", "point_prelevement", "agence_eau",
+            "surface_normandie_ha", f"pp_{a0}", f"pp_{r0}", f"pp_{an}", "retourne_ha",
+            "retourne_recent_ha", "sortie_declaration_ha", "solde", "solde_taux",
+            "part_en_prairie", "retournement_recent_taux_annuel", "communes",
+            "communes_principales", "rang_hectares", "rang_taux"
+        ]).rename_axis("aac"), pd.DataFrame(columns=["aac", "insee", "prairies_ha"])
+
+    col_cdaac = "cdaac" if "cdaac" in a.columns else a.columns[0]
+    a = a.assign(cdaac=a[col_cdaac].astype(str)).drop_duplicates("cdaac").set_index("cdaac")
+    reg_geom = region().geometry.iloc[0]
+    surface = a.geometry.intersection(reg_geom).area / 1e4
+
+    nom_aac = a.nomdeaacadministratif if "nomdeaacadministratif" in a.columns else a.index
+    cmd_aac = a.commandaac.map(_intervenant) if "commandaac" in a.columns else pd.Series(None, index=a.index)
+    adm_aac = a.adminaac.map(_intervenant) if "adminaac" in a.columns else pd.Series(None, index=a.index)
+    ptp_aac = a.ptp.map(_intervenant) if "ptp" in a.columns else pd.Series(None, index=a.index)
+    bassin = ("Agence de l'eau " + a.nomcircadminbassin.astype(str).str.title()) if "nomcircadminbassin" in a.columns else pd.Series("Agence de l'eau Seine-Normandie", index=a.index)
 
     g = pd.DataFrame({
-        "nom": a.nomdeaacadministratif,
-        "maitre_ouvrage": a.commandaac.map(_intervenant),
-        "service_etat": a.adminaac.map(_intervenant),
-        "point_prelevement": a.ptp.map(_intervenant),
-        # toujours connue (le Sandre ne renseigne pas toujours le maître d'ouvrage)
-        "agence_eau": "Agence de l'eau " + a.nomcircadminbassin.str.title(),
+        "nom": nom_aac,
+        "maitre_ouvrage": cmd_aac,
+        "service_etat": adm_aac,
+        "point_prelevement": ptp_aac,
+        "agence_eau": bassin,
         "surface_normandie_ha": surface,
         f"pp_{a0}": debut.groupby("aac").ha.sum(),
         f"pp_{r0}": recent.groupby("aac").ha.sum(),
