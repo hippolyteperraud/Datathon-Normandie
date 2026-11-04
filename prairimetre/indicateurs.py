@@ -43,7 +43,11 @@ def periodes():
         return 2018, 2025, 2022
     if len(A) == 1:
         return A[0], A[0], A[0]
-    return A[0], A[-1], A[-1] - RECENT
+    r0 = A[-1] - RECENT
+    if r0 not in A:
+        candidats = [a for a in A if a <= r0]
+        r0 = candidats[-1] if candidats else A[0]
+    return A[0], A[-1], r0
 
 
 # --- Zonages des prairies d'une année ----------------------------------------------------------
@@ -60,15 +64,25 @@ def appartenance(x, y):
     out = {}
     for nom in ZONAGES:
         z = zonage(nom)
+        if len(z) == 0:
+            out[f"z_{nom}"] = np.zeros(len(pts), bool)
+            if nom == "pnr":
+                out["pnr"] = np.array([None] * len(pts))
+            if nom == "aires_alimentation_captages":
+                out["aac"] = np.array([None] * len(pts))
+            continue
         iz, ip = pts.sindex.query(z.geometry, predicate="contains")
         dedans = np.zeros(len(pts), bool)
         dedans[ip] = True
         out[f"z_{nom}"] = dedans
         if nom == "pnr":
-            out["pnr"] = pd.Series(z.nom_site.values[iz], index=ip).groupby(level=0).first() \
+            val = z.nom_site.values[iz] if "nom_site" in z.columns else np.array([None] * len(iz))
+            out["pnr"] = pd.Series(val, index=ip).groupby(level=0).first() \
                 .reindex(range(len(pts))).values
         if nom == "aires_alimentation_captages":
-            out["aac"] = pd.Series(z.cdaac.astype(str).values[iz], index=ip).groupby(level=0) \
+            col_aac = "cdaac" if "cdaac" in z.columns else z.columns[0]
+            val = z[col_aac].astype(str).values[iz]
+            out["aac"] = pd.Series(val, index=ip).groupby(level=0) \
                 .first().reindex(range(len(pts))).values
     out = pd.DataFrame(out)
     for famille, noms in FAMILLES.items():
@@ -123,7 +137,8 @@ def serie():
     if len(A) < 2:
         cols = [f"sortie_{FLUX[c]}" for c in FLUX] + [f"entree_{FLUX[c]}" for c in FLUX]
         return pd.DataFrame(columns=["depart", "arrivee", "solde"] + cols).rename_axis("periode")
-    t = pd.concat({f"{a}-{a + 1}": _flux(a, a + 1) for a in A[:-1]}, names=["periode"])
+    flux_dict = {f"{a}-{b}": _flux(a, b) for a, b in zip(A[:-1], A[1:])}
+    t = pd.concat(flux_dict, names=["periode"])
     return t.droplevel(-1)
 
 
@@ -242,8 +257,9 @@ def table_communes():
     base = t[f"pp_{a0}"]
     valide = base >= MIN_HA
     t["solde_taux"] = (t.solde / base).where(valide)
-    t["retournement_taux_annuel"] = (t.retourne / base / (an - a0)).where(valide)
-    t["retournement_recent_taux_annuel"] = (t.retourne_recent / t[f"pp_{r0}"] / RECENT) \
+    t["retournement_taux_annuel"] = (t.retourne / base / max(an - a0, 1)).where(valide)
+    delta_r = max(an - r0, 1)
+    t["retournement_recent_taux_annuel"] = (t.retourne_recent / t[f"pp_{r0}"] / delta_r) \
         .where(t[f"pp_{r0}"] >= MIN_HA)
 
     # Mécanisme dominant : le solde le plus négatif entre culture et non-déclaration
@@ -333,7 +349,8 @@ def table_captages(t):
     g["solde"] = g[f"pp_{an}"] - g[f"pp_{a0}"]
     g["solde_taux"] = g.solde / g[f"pp_{a0}"]
     g["part_en_prairie"] = g[f"pp_{an}"] / g.surface_normandie_ha
-    g["retournement_recent_taux_annuel"] = (g.retourne_recent_ha / g[f"pp_{r0}"] / RECENT) \
+    delta_r = max(an - r0, 1)
+    g["retournement_recent_taux_annuel"] = (g.retourne_recent_ha / g[f"pp_{r0}"] / delta_r) \
         .where(g[f"pp_{r0}"] >= MIN_HA)
     noms = t.nom_officiel
     par_commune = Zn.dropna(subset=["aac"]).groupby(["aac", "insee"]).ha.sum().reset_index()
@@ -352,10 +369,10 @@ def flux_commune(insee):
     """Entrées, sorties et solde d'une commune, année par année."""
     A = annees()
     lignes = {}
-    for a in A[:-1]:
-        t = _flux(a, a + 1, "insee")
+    for a, b in zip(A[:-1], A[1:]):
+        t = _flux(a, b, "insee")
         if insee in t.index:
-            lignes[f"{a}-{a + 1}"] = t.loc[insee]
+            lignes[f"{a}-{b}"] = t.loc[insee]
     return pd.DataFrame(lignes).T.rename_axis("periode")
 
 

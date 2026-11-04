@@ -114,20 +114,43 @@ def zonage(nom):
     'plu_zone_n' = zones N des PLU."""
     def f():
         if nom == "plu_zone_n":
-            g = lire(DATA / "priorite/plu_zonage.gpkg", columns=["typezone"])
+            p = DATA / "priorite/plu_zonage.gpkg"
+            if not p.exists():
+                return gpd.GeoDataFrame(columns=["geometry", "typezone"], crs=2154)
+            g = lire(p, columns=["typezone"])
             return g[g.typezone.astype(str).str.upper().str.startswith("N")][["geometry"]]
         cols = {"pnr": ["nom_site"], "aires_alimentation_captages": [
             "cdaac", "nomdeaacadministratif", "commandaac", "adminaac", "ptp",
             "nomcircadminbassin"]}
-        return lire(DATA / f"priorite/{nom}.gpkg", columns=cols.get(nom, []))
+        p = DATA / f"priorite/{nom}.gpkg"
+        if not p.exists():
+            if nom == "aires_alimentation_captages":
+                secours = DATA / "raw/aac_normandie/AAC.gpkg"
+                if secours.exists():
+                    g = lire(secours)
+                    col_map = {c.lower(): c for c in g.columns}
+                    for target, cand in [("cdaac", "id_captage"), ("cdaac", "cdaac"),
+                                         ("nomdeaacadministratif", "nom_captage"),
+                                         ("nomdeaacadministratif", "nom_aac")]:
+                        if target not in g.columns and cand in col_map:
+                            g[target] = g[col_map[cand]]
+                    if "cdaac" not in g.columns:
+                        g["cdaac"] = [f"AAC_{i+1:03d}" for i in range(len(g))]
+                    if "nomdeaacadministratif" not in g.columns:
+                        g["nomdeaacadministratif"] = g["cdaac"]
+                    return g
+            return gpd.GeoDataFrame(columns=["geometry"] + cols.get(nom, []), crs=2154)
+        return lire(p, columns=cols.get(nom, []))
     return en_cache(f"prio_{nom}", f)
 
 
 def habitats_prairiaux():
     """Habitats prairiaux d'intérêt européen cartographiés dans les sites Natura 2000 (14, 50, 61)."""
     def f():
-        g = lire(DATA / SOURCES["habitats_natura2000"]["fichier"],
-                 columns=["nat2000", "nat2000txt", "etatcons", "code_site"])
+        chemin = DATA / SOURCES["habitats_natura2000"]["fichier"]
+        if not chemin.exists():
+            return gpd.GeoDataFrame(columns=["geometry", "nat2000", "nat2000txt", "etatcons", "code_site", "code"], crs=2154)
+        g = lire(chemin, columns=["nat2000", "nat2000txt", "etatcons", "code_site"])
         g["code"] = g.nat2000.astype(str).str[:4]
         return g[g.code.isin(HABITATS_PRAIRIAUX)].reset_index(drop=True)
     return en_cache("habitats_prairiaux", f)
@@ -136,7 +159,10 @@ def habitats_prairiaux():
 def saa():
     """Statistique agricole annuelle : prairies permanentes productives par département et par
     année (source indépendante du RPG). Niveau reconstitué : base de l'année + variation."""
-    t = pd.read_csv(DATA / SOURCES["saa_prairies"]["fichier"], dtype={"geocode_departement": str})
+    chemin = DATA / SOURCES["saa_prairies"]["fichier"]
+    if not chemin.exists():
+        return pd.DataFrame(columns=["annee", "dep", "niveau"])
+    t = pd.read_csv(chemin, dtype={"geocode_departement": str})
     t = t[t.type_prairie == "Prairies naturelles ou semées depuis plus de 5 ans"].copy()
     t["annee"] = t.date_mesure.str[:4].astype(int)
     t["niveau"] = pd.to_numeric(t.denominateur) + pd.to_numeric(t.numerateur)
@@ -145,7 +171,10 @@ def saa():
 
 def enaf():
     """Consommation d'espaces NAF (Cerema), clé 'insee'."""
-    e = pd.read_csv(DATA / SOURCES["conso_enaf"]["fichier"], dtype={"idcom": str})
+    chemin = DATA / SOURCES["conso_enaf"]["fichier"]
+    if not chemin.exists():
+        return pd.DataFrame(columns=["insee", "idcom"])
+    e = pd.read_csv(chemin, dtype={"idcom": str})
     e["insee"] = code5(e["idcom"])
     return e
 
@@ -153,8 +182,10 @@ def enaf():
 def lucas():
     """Points LUCAS 2022 ; prairie_terrain = couverture observée commençant par E."""
     def f():
-        g = lire(DATA / SOURCES["lucas"]["fichier"],
-                 columns=["point_id", "survey_lc1", "survey_lu1", "survey_grazing"])
+        chemin = DATA / SOURCES["lucas"]["fichier"]
+        if not chemin.exists():
+            return gpd.GeoDataFrame(columns=["geometry", "point_id", "survey_lc1", "survey_lu1", "survey_grazing", "prairie_terrain"], crs=2154)
+        g = lire(chemin, columns=["point_id", "survey_lc1", "survey_lu1", "survey_grazing"])
         g["prairie_terrain"] = g["survey_lc1"].astype(str).str.startswith("E")
         return g
     return en_cache("lucas", f)

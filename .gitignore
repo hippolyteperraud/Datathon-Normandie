@@ -3,6 +3,7 @@ cache/
 sorties/
 tmp_*/
 .venv/
+.venv-linux/
 __pycache__/
 *.py[cod]
 *.log
