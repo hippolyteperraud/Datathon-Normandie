@@ -1,4 +1,4 @@
-"""Données et méthode : les preuves de chaque recommandation, les tests, les définitions,
+"""Données et méthode : les preuves de chaque recommandation (et les tests qui les vérifient),
 les sources et le moteur."""
 import re
 
@@ -6,18 +6,16 @@ import altair as alt
 import pandas as pd
 import streamlit as st
 
-from commun import (CAT, MIN_HA, NEUTRE, OFFICIEL, bornes, comparaison, evaluation, ha, lancer,
-                    manquantes,
-                    nombre, pct, table)
-from prairimetre.config import ANNEE_REFERENCE_OBJECTIF, RACINE, RECENT, SORTIES, annees
+from commun import (AXE_FR, CAT, MIN_HA, NEUTRE, OFFICIEL, a_recalculer, bornes, comparaison,
+                    evaluation, ha, lancer, manquantes, nombre, pct, table)
+from prairimetre.config import RECENT, SORTIES, annees
 from prairimetre.sources import SOURCES
 from prairimetre.telecharger import derniere_date
 
 a0, an = bornes()
 pret = not manquantes()  # sans résultats, seul l'onglet Moteur sert : y lancer le calcul
 st.title("Données et méthode")
-preuves, tests, definitions, sources, moteur = st.tabs(
-    ["Preuves", "Tests", "Définitions", "Sources", "Moteur"])
+preuves, sources, moteur = st.tabs(["Preuves", "Sources", "Moteur"])
 
 NOMS_ZONAGES = {
     "prairies_sensibles": "Prairies sensibles (BCAE 9)",
@@ -81,13 +79,11 @@ with preuves:
     if not pret:
         st.info("Pas encore de résultats : lancez le calcul dans l'onglet Moteur.")
     else:
-        st.markdown(f"""
-Les prairies permanentes déclarées en {a0} sont comparées, parcelle par parcelle, aux déclarations
-de {an}. On suit la surface, car les identifiants des parcelles changent chaque année. Une prairie
-devenue culture est **retournée** : la perte est certaine. Une prairie qui n'est plus déclarée du
-tout est **sortie de la déclaration** : on ne sait pas ce qu'elle est devenue. Tous les chiffres
-viennent de cette seule comparaison, en Normandie, et se recalculent à chaque nouveau registre.
-""")
+        st.markdown(f"Les prairies permanentes déclarées en {a0} sont comparées, parcelle par "
+                    f"parcelle, aux déclarations de {an}, en Normandie. Tous les chiffres viennent "
+                    "de cette seule comparaison et se recalculent à chaque nouveau registre. Chaque "
+                    "question ci-dessous fonde un des moyens d'agir ; chaque réponse a été "
+                    "recalculée autrement pour vérifier qu'elle ne dépend pas d'un choix de méthode.")
 
         # 1. Le compteur en hectares -------------------------------------------------------------------
         st.subheader("1. Le compteur en hectares est-il fiable ?")
@@ -106,15 +102,17 @@ viennent de cette seule comparaison, en Normandie, et se recalculent à chaque n
                     "annee", var_name="source", value_name="ha")
                 d["source"] = d.source.map({"rpg_variation": "prairies déclarées (RPG)",
                                             "saa_variation": "statistique agricole annuelle"})
+                d["variation"] = d.ha.map(lambda x: ha(x, signe=True))
                 barres = alt.Chart(d).mark_bar(cornerRadiusEnd=3).encode(
                     x=alt.X("annee:O", title=None, axis=alt.Axis(labelAngle=0)),
                     xOffset="source:N",
-                    y=alt.Y("ha:Q", title="variation sur un an (ha)", axis=alt.Axis(format="~s")),
+                    y=alt.Y("ha:Q", title="variation (ha/an)",
+                            axis=alt.Axis(labelExpr=AXE_FR)),
                     color=alt.Color("source:N", title=None,
                                     legend=alt.Legend(orient="bottom", labelLimit=0),
                                     scale=alt.Scale(range=[CAT[0], CAT[1]])),
                     tooltip=[alt.Tooltip("annee:O", title="année"), alt.Tooltip("source:N"),
-                             alt.Tooltip("ha:Q", format="+,.0f")])
+                             alt.Tooltip("variation:N")])
                 st.altair_chart(barres.properties(height=220), width="stretch")
                 v = s[["rpg_variation", "saa_variation"]].dropna()
                 if len(v):
@@ -129,19 +127,18 @@ viennent de cette seule comparaison, en Normandie, et se recalculent à chaque n
             with g2:
                 o = k[k.source.str.startswith("OCS")]
                 sortie = o[o.groupe == "sorties de la déclaration"]
-                temoin = o[o.groupe == "témoin : restées prairies"]
                 st.markdown(
-                    f"L'année de leur sortie, ces prairies sont encore en herbe à "
-                    f"{pct(moy(sortie, 'herbe, usage agricole'), 0)} selon la carte d'occupation du "
-                    f"sol de l'IGN, contre {pct(moy(temoin, 'herbe, usage agricole'), 0)} pour les "
-                    f"prairies restées déclarées. {pct(moy(sortie, 'artificialisé'), 1)} seulement est "
-                    "construit.")
+                    f"L'année de leur sortie, {pct(moy(sortie, 'herbe, usage agricole'), 0)} de "
+                    "ces prairies restent des terres agricoles selon la carte d'occupation du sol "
+                    f"de l'IGN, et {pct(moy(sortie, 'artificialisé'), 1)} seulement est construit. "
+                    "Mais cette carte range prairies et cultures dans la même classe : elle ne dit "
+                    "pas si l'herbe est encore là.")
                 lu = k[k.source.str.startswith("LUCAS")].set_index("groupe")
                 if "sorties de la déclaration" in lu.index:
-                    st.caption(f"Les points d'enquête au sol (LUCAS 2022) tombés dans ces parcelles "
-                               f"sont trop peu nombreux "
-                               f"({int(lu.loc['sorties de la déclaration', 'prairies'])}) pour une "
-                               "vérification parcelle par parcelle.")
+                    st.caption(f"L'enquête au sol LUCAS 2022, seule source qui distingue l'herbe "
+                               f"de la culture, n'a que "
+                               f"{int(lu.loc['sorties de la déclaration', 'prairies'])} points "
+                               "dans ces parcelles : trop peu pour conclure.")
 
         # 2. Les règles et les zonages -----------------------------------------------------------------
         z = evaluation("zonages", index_col=0)
@@ -162,6 +159,7 @@ viennent de cette seule comparaison, en Normandie, et se recalculent à chaque n
             d = d[d.part_des_prairies >= 0.01].copy()
             d["famille"] = d.famille.map(FAMILLES)
             d["texte"] = d.rapport_meme_commune.map(lambda v: nombre(v, 2))
+            d["retournees"] = d.retourne_ha.map(ha)
             d["zonage"] = d.zonage.map(NOMS_ZONAGES)
             barres = alt.Chart(d).mark_bar(cornerRadiusEnd=4, height=14).encode(
                 y=alt.Y("zonage:N", sort=alt.EncodingSortField("rapport_meme_commune"), title=None,
@@ -175,7 +173,7 @@ viennent de cette seule comparaison, en Normandie, et se recalculent à chaque n
                                                 range=list(COULEURS_FAMILLES.values()))),
                 tooltip=[alt.Tooltip("zonage:N"), alt.Tooltip("famille:N"),
                          alt.Tooltip("texte:N", title="rapport"),
-                         alt.Tooltip("retourne_ha:Q", title="retournées dedans (ha)", format=",.0f")])
+                         alt.Tooltip("retournees:N", title="retournées dedans")])
             textes = alt.Chart(d).mark_text(align="left", dx=4, fontSize=11, color="#52514e").encode(
                 y=alt.Y("zonage:N", sort=alt.EncodingSortField("rapport_meme_commune")),
                 x="rapport_meme_commune:Q", text="texte:N")
@@ -184,8 +182,10 @@ viennent de cette seule comparaison, en Normandie, et se recalculent à chaque n
             st.altair_chart((barres + textes + regle).properties(height=340), width="stretch")
             notes = ["Ce sont des écarts mesurés, pas la preuve d'un effet des règles : les prairies "
                      "humides sont aussi plus dures à labourer, et les prairies sensibles ont été "
-                     "désignées parmi des prairies déjà en place." + phrase_robustesse(
-                         "aires_alimentation_captages", "Pour les aires de captage")]
+                     "désignées parmi des prairies déjà en place."
+                     + phrase_robustesse("regle", "Pour les règles")
+                     + phrase_robustesse("aires_alimentation_captages",
+                                         "Pour les aires de captage")]
             if len(petits):
                 notes.append("Non représentés, faute de prairies : "
                              + ", ".join(petits.zonage.map(NOMS_ZONAGES).str.lower()) + ".")
@@ -203,100 +203,38 @@ viennent de cette seule comparaison, en Normandie, et se recalculent à chaque n
         if c is not None:
             st.subheader("3. Les retournements sont-ils concentrés ?")
             r = c.loc["retourne_recent"]
-            st.markdown(f"Oui : 10 % des communes portent {pct(r.part_top_10pct, 0)} du retournement "
-                        f"récent, et {int(r.communes_pour_50pct)} communes en portent la moitié. Une "
-                        "liste courte suffit donc à toucher l'essentiel. Sa stabilité est vérifiée "
-                        "dans l'onglet Tests.")
+            texte = (f"Oui : 10 % des communes portent {pct(r.part_top_10pct, 0)} du retournement "
+                     f"récent, et {int(r.communes_pour_50pct)} communes en portent la moitié. Une "
+                     "liste courte suffit donc à toucher l'essentiel.")
+            sens = evaluation("sensibilite")
+            if sens is not None:
+                rec = sens[sens.parametre.str.startswith("période")]
+                texte += (f" Elle est stable : parmi les 50 communes qui retournent le plus en "
+                          f"{RECENT} ans, "
+                          + " et ".join(f"{int(n)} y restent avec {int(v)} ans"
+                                        for v, n in zip(rec.valeur,
+                                                        rec.communes_communes_avec_reference)
+                                        if int(v) != RECENT) + ".")
+            st.markdown(texte)
+            p = evaluation("prediction", index_col=0)
+            if p is not None:
+                st.caption(f"On ne peut pas prévoir les retournements : classer les communes sur la "
+                           f"première moitié de la période retrouve "
+                           f"{pct(p.capture_top_10pct.iloc[0], 0)} des retournements de "
+                           f"{p.periode_testee.iloc[0].replace('-', '–')} dans le premier dixième, "
+                           f"autant que la simple surface en prairie "
+                           f"({pct(p.capture_top_10pct.iloc[1], 0)}). La liste repose donc sur ce "
+                           "qui est observé, et se refait à chaque registre.")
 
-# --- Tests : la solidité des résultats -------------------------------------------------------------
-with tests:
-    st.markdown("Chaque résultat de l'outil a été recalculé autrement, pour vérifier qu'il ne "
-                "dépend pas d'un choix de méthode.")
-
-    rob = evaluation("robustesse")
-    if rob is not None:
-        st.subheader("Les écarts mesurés tiennent-ils d'une période à l'autre ?")
-        noms = {"regle": "Là où une règle encadre le labour",
-                "aires_alimentation_captages": "Dans les aires de captage"}
-        lignes = []
-        for zonage, g in rob.groupby("zonage", sort=False):
-            valeurs = ", ".join(f"{nombre(v, 2)} ({p.replace('-', '–')}"
-                                + (", année par année" if "année" in m else "") + ")"
-                                for p, m, v in zip(g.periode, g.methode, g.rapport_meme_commune))
-            lignes.append(f"- {noms.get(zonage, zonage)} : {valeurs}.")
-        st.markdown("\n".join(lignes))
-        st.caption("Rapport entre le retournement dans le zonage et dans le reste de la même "
-                   "commune." + phrase_robustesse("regle", "Pour les règles")
-                   + phrase_robustesse("aires_alimentation_captages",
-                                       "Pour les aires de captage"))
-
-    sens = evaluation("sensibilite")
-    if sens is not None:
-        st.subheader("Les listes changent-elles avec les seuils ?")
-        seuil = sens[sens.parametre.str.startswith("seuil")]
-        rec = sens[sens.parametre.str.startswith("période")]
+        st.subheader("4. Le calcul est-il reproductible ?")
         st.markdown(
-            "- Seuil de prairies sous lequel une commune n'est pas classée : "
-            + ", ".join(f"{int(v)} ha donne {nombre(n)} communes classées"
-                        for v, n in zip(seuil.valeur, seuil.communes_calculees))
-            + f". Le seuil retenu est de {MIN_HA} ha.\n"
-            f"- Durée de la période récente : parmi les 50 communes qui retournent le plus en "
-            f"{RECENT} ans, "
-            + " et ".join(f"{int(n)} restent dans la liste avec {int(v)} ans"
-                          for v, n in zip(rec.valeur, rec.communes_communes_avec_reference)
-                          if int(v) != RECENT) + ".")
-
-    p = evaluation("prediction", index_col=0)
-    if p is not None:
-        st.subheader("Peut-on prévoir les retournements ?")
-        st.markdown(f"Non. Classer les communes sur les retournements de la première moitié de la "
-                    f"période retrouve {pct(p.capture_top_10pct.iloc[0], 0)} des retournements de "
-                    f"{p.periode_testee.iloc[0].replace('-', '–')} dans le premier dixième, à peine "
-                    f"plus que la simple surface en prairie ({pct(p.capture_top_10pct.iloc[1], 0)})."
-                    " L'outil classe donc les territoires sur ce qui est observé, et la liste se met "
-                    "à jour chaque année.")
-
-    st.subheader("Les données et le calcul sont-ils reproductibles ?")
-    st.markdown(
-        "- À chaque nouvelle année, le moteur contrôle le registre téléchargé (projection, "
-        "colonnes, surfaces, cohérence avec l'année précédente et avec la couche officielle des "
-        "prairies) avant tout calcul.\n"
-        "- Le 25 octobre 2026, le registre 2025 retéléchargé et recalculé de bout en bout a redonné "
-        "exactement les mêmes résultats.\n"
-        "- Le 27 octobre 2026, toutes les données retéléchargées avec `importer_donnees.py` étaient "
-        "identiques à celles du projet, à une aire de captage près, publiée entre-temps par le "
-        "Sandre.\n"
-        "- Des tests automatisés vérifient le calcul des surfaces et des catégories "
-        "(`python -m unittest discover tests`).")
-
-# --- Définitions -------------------------------------------------------------------------------------
-with definitions:
-    if not pret:
-        st.info("Pas encore de résultats : lancez le calcul dans l'onglet Moteur.")
-    else:
-        bil = table("bilan_direct").loc["région"]
-        solde = bil[("nouvelles_venant_de", "arrivee")] - bil[("disparues_devenues", "depart")]
-        st.markdown(f"""
-Quatre chiffres circulent sur les prairies normandes. Ils ne comptent pas la même chose.
-
-| Chiffre | Ce qu'il compte | Évolution |
-|---|---|---|
-| Prairimètre | prairies permanentes déclarées à la PAC (RPG, groupe de cultures 18), en Normandie | {ha(solde, signe=True)} ({a0}→{an}) |
-| Chiffre officiel | prairies permanentes au sens réglementaire de la PAC, région Normandie | {ha(OFFICIEL['perte_ha'], signe=True)} ({nombre(OFFICIEL['perte_pct'], 1)} %) |
-| Ratio officiel | part des prairies permanentes dans la surface agricole | {nombre(OFFICIEL['ratio_evol_pct'], 2)} % |
-| Statistique agricole annuelle | prairies permanentes productives (enquête, toutes exploitations) | voir l'onglet Preuves |
-
-- Le groupe 18 du RPG réunit les prairies permanentes (PPH) et, jusqu'en 2022, les prairies de
-  plus de cinq ans (PRL). En 2023, les PRL disparaissent : 94 % d'entre elles deviennent PPH, et la
-  série reste continue.
-- Le ratio est comparé à un ratio de référence, recalculé en 2024 (règlement UE 2024/1235) après le
-  passage de la Normandie au régime d'interdiction en 2023. Il ne recule que de
-  {nombre(-OFFICIEL['ratio_evol_pct'], 2)} %, loin du seuil d'alerte de 5 %, alors que les hectares
-  diminuent nettement. C'est pourquoi l'outil suit les hectares plutôt que le ratio.
-- L'objectif de zéro perte nette en 2030 est mesuré ici par rapport au niveau de
-  {ANNEE_REFERENCE_OBJECTIF} (réglage du moteur, `prairimetre/config.py`).
-- Source du chiffre officiel : {OFFICIEL['source']}.
-""")
+            "Oui. À chaque nouvelle année, le moteur contrôle le registre téléchargé (projection, "
+            "colonnes, surfaces, cohérence avec l'année précédente) avant tout calcul. Le 25 "
+            "octobre 2026, le registre 2025 retéléchargé et recalculé de bout en bout a redonné "
+            "exactement les mêmes résultats ; le 27 octobre, toutes les données retéléchargées "
+            "avec `importer_donnees.py` étaient identiques, à une aire de captage près, publiée "
+            "entre-temps par le Sandre. Des tests automatisés vérifient le calcul des surfaces et "
+            "des catégories (`python -m unittest discover tests`).")
 
 # --- Sources et données manquantes ------------------------------------------------------------------
 with sources:
@@ -385,7 +323,7 @@ with moteur:
               f"{nombre(dern.sorties_mo.iloc[-1], 1)} Mo de résultats. Toutes les données se "
               "retéléchargent avec `python importer_donnees.py`.")
 
-    # 1. Nouveau RPG : un bouton
+    # Nouveau RPG : un bouton
     with st.container(border=True):
         st.markdown("**Un nouveau registre parcellaire est sorti ?**")
         st.markdown(f"Les données vont aujourd'hui de **{A[0]} à {A[-1]}**. Le moteur cherche le "
@@ -395,56 +333,12 @@ with moteur:
                      icon=":material/download:", disabled=occupe):
             executer(["mettre-a-jour"])
 
-    # 2. Importer un fichier téléchargé à la main
-    with st.container(border=True):
-        st.markdown("**Importer un fichier téléchargé à la main**")
-        st.markdown("Pour les sources sans téléchargement automatique (communes, OCS GE, Cerema…), "
-                    "ou pour remplacer n'importe quelle source. Formats : GeoPackage, Shapefile, "
-                    "GeoJSON, CSV, ou l'archive .zip / .7z telle quelle. Le moteur met au format, "
-                    "vérifie les colonnes, garde la Normandie ; rien n'est remplacé si un contrôle "
-                    "échoue.")
-        noms = list(SOURCES)
-        source = st.selectbox("Source", noms, format_func=lambda n: NOMS_SOURCES.get(n, n),
-                              index=noms.index("communes"))
-        s = SOURCES[source]
-        st.caption(f"Où la trouver : {s['page']}")
-        mode = st.segmented_control("Fichier", ["Chemin sur l'ordinateur", "Déposer le fichier"],
-                                    default="Chemin sur l'ordinateur")
-        chemin = None
-        if mode == "Déposer le fichier":
-            depot = st.file_uploader("Fichier", type=["gpkg", "zip", "7z", "csv", "geojson", "json"],
-                                     label_visibility="collapsed")
-            if depot is not None:
-                dossier = RACINE / "tmp_depot"
-                dossier.mkdir(exist_ok=True)
-                chemin = dossier / depot.name
-                chemin.write_bytes(depot.getbuffer())
-        else:
-            chemin = st.text_input("Chemin du fichier",
-                                   placeholder=r"C:\Users\...\Téléchargements\fichier.7z")
-            chemin = chemin.strip().strip('"').strip("'")  # « Copier en tant que chemin » Windows
-        options = []
-        if "{annee}" in s["fichier"]:
-            options += ["--annee", st.number_input("Année", 2015, 2100, A[-1] + 1)]
-        if source == "ocsge":
-            o1, o2 = st.columns(2)
-            options += ["--dep", o1.selectbox("Département", ["14", "27", "50", "61", "76"]),
-                        "--millesime", o2.number_input("Millésime", 2015, 2100, 2025)]
-        if st.button("Importer puis recalculer", icon=":material/play_arrow:",
-                     disabled=occupe or not chemin):
-            executer(["importer", source, str(chemin), *options], ["calculer"],
-                     ["evaluer", "--rapide"])
-
-    # 3. Le reste
-    with st.expander("Autres commandes"):
-        COMMANDES = {
-            "Rafraîchir tous les zonages (WFS)": ["telecharger", "zonages"],
-            "Recalculer les indicateurs": ["calculer"],
-            "Contrôler les données": ["controler"],
-            "Évaluer (rapide)": ["evaluer", "--rapide"],
-            "Évaluer (complet)": ["evaluer"],
-            "Préparer le paquet de remise (zip, en local)": ["livrer"],
-        }
-        choix = st.selectbox("Commande", list(COMMANDES))
-        if st.button("Lancer", icon=":material/play_arrow:", disabled=occupe):
-            executer(COMMANDES[choix])
+    # Proposé seulement si les résultats ne suivent pas les données en local
+    if a_recalculer():
+        with st.container(border=True):
+            st.markdown("**Les résultats ne sont pas à jour**")
+            st.markdown("Ils manquent, ou ne suivent pas le dernier registre en local. Le moteur "
+                        "recalcule les indicateurs puis les évalue, sans rien télécharger.")
+            if st.button("Recalculer les résultats", icon=":material/play_arrow:",
+                         disabled=occupe):
+                executer(["calculer"], ["evaluer"])

@@ -17,8 +17,8 @@ import streamlit as st
 from prairimetre.config import CACHE, DATA, MIN_HA, RACINE, RECENT, SORTIES, annees
 from prairimetre.sources import SOURCES
 
-TABLES = ["communes", "serie_region", "captages", "communes_captages", "bilan_direct",
-          "cultures_destination", "objectif"]
+TABLES = ["communes", "communes_zones", "serie_region", "captages", "communes_captages",
+          "bilan_direct", "cultures_destination", "objectif"]
 
 # Chiffre officiel (vérifié sur Légifrance le 22/10/2026)
 OFFICIEL = {"perte_ha": -59703, "perte_pct": -8.9, "ratio_evol_pct": -1.97,
@@ -34,6 +34,9 @@ LEXIQUE = {
     "BCAE": "les « bonnes conditions agricoles et environnementales » imposées par la PAC. La BCAE 9 "
             "interdit de retourner les prairies sensibles ; la BCAE 2 protège les zones humides "
             "et les tourbières.",
+    "Brut, net": "brut : toutes les prairies retournées ou sorties de la déclaration ; net : après "
+                 "déduction, dans la même commune, des prairies apparues sur d'anciennes cultures "
+                 "ou terres non déclarées. L'outil classe les communes sur le net.",
     "Intercommunalité (EPCI)": "communauté de communes, d'agglomération ou urbaine.",
     "MAEC, paiements pour services environnementaux": "aides versées à un agriculteur qui "
                                                        "s'engage à garder ses prairies.",
@@ -57,7 +60,7 @@ LEXIQUE = {
     "Retournement": "prairie labourée puis déclarée en culture (maïs, blé…). La perte est certaine, "
                     "puisque la culture est déclarée.",
     "Sortie de la déclaration": "prairie qui n'apparaît plus dans le registre parcellaire. L'herbe "
-                                "est souvent encore là (changement d'exploitant, chevaux, terrain "
+                                "peut être encore là (changement d'exploitant, chevaux, terrain "
                                 "sans aide PAC) : la perte n'est pas certaine.",
 }
 
@@ -72,12 +75,13 @@ DE_TERRITOIRE = {"Normandie": "de Normandie", "14": "du Calvados", "27": "de l'E
 CAT = ["#2a78d6", "#eb6834", "#169c6c"]
 NEUTRE = "#c3c2b7"
 # Cartes (fond de carte blanc) : les mêmes trois états partout
-NOIR = "#000000"     # pas de donnée : l'outil ne voit rien ici
+NOIR = "#000000"     # pas de donnée : la source ne voit rien ici
 HORS = "#a9a89f"     # des données, mais hors de la liste affichée
-GRIS = "#6b6a65"     # trop peu de données pour conclure
+GRIS = "#6b6a65"     # pas de diagnostic : peu ou pas de prairies (villes, zones d'activité,
+                     # communes de cultures). Le registre les couvre : ce n'est pas un manque
 # Parcelles de « Ma commune » : une couleur par devenir, lisible sur fond blanc
 FLUX_COULEURS = {"culture": "#c2452d", "non déclaré": "#f0a202", "prairie temporaire": "#2a78d6",
-                 "prairie permanente": "#2e7d4f", "autre": "#5b5a55"}
+                 "prairie permanente": "#2e7d4f", "autre": "#5b5a55", "ajoutée": "#8a4fc4"}
 
 # Les trois moyens d'agir (page Où agir) et la vérification (page Carte des données). Une
 # commune relève de l'un d'eux selon le mécanisme dominant de ses pertes, calculé par le moteur.
@@ -186,6 +190,21 @@ def _evaluation(nom, _date, **kw):
     return pd.read_csv(SORTIES / f"evaluation_{nom}.csv", **kw)
 
 
+def etat_sorties():
+    """Ce que la carte d'occupation du sol (OCS GE) voit, l'année de leur sortie, sur les
+    prairies sorties de la déclaration : part restée en terre agricole, part construite. Cette
+    carte range prairies et cultures dans la même classe : elle ne dit pas si l'herbe est encore
+    là. None si l'évaluation manque."""
+    c = evaluation("certitude")
+    if c is None:
+        return None
+    o = c[c.source.str.startswith("OCS") & (c.groupe == "sorties de la déclaration")]
+    if o.empty:
+        return None
+    return {"agricole": (o["herbe, usage agricole"] * o.ha).sum() / o.ha.sum(),
+            "construit": (o["artificialisé"] * o.ha).sum() / o.ha.sum()}
+
+
 def bornes():
     """Première et dernière année des résultats affichés, lues dans sorties/ : les pages restent
     cohérentes même si un registre vient d'être téléchargé sans être encore calculé."""
@@ -204,14 +223,21 @@ def exiger_sorties():
     m = manquantes()
     if m:
         st.warning("Les résultats du moteur sont incomplets (manquent : " + ", ".join(m)
-                   + "). Lancez « Recalculer » dans Données et méthode → Moteur.")
+                   + "). Lancez « Recalculer les résultats » dans Données et méthode → Moteur.")
         st.page_link("vues/methode.py", label="Données et méthode", icon=":material/settings:")
         st.stop()
     A, an = annees(), bornes()[1]
     if A and A[-1] > an:
         st.warning(f"Le registre {A[-1]} est téléchargé, mais les résultats s'arrêtent à {an}. "
-                   "Lancez « Recalculer les indicateurs » puis « Évaluer » dans Données et "
-                   "méthode → Moteur.")
+                   "Lancez « Recalculer les résultats » dans Données et méthode → Moteur.")
+
+
+def a_recalculer():
+    """Vrai si les résultats manquent, s'arrêtent avant le dernier registre en local, ou si
+    l'évaluation n'a pas tourné : seul cas où l'onglet Moteur propose de recalculer."""
+    A = annees()
+    return bool(manquantes()) or bool(A and A[-1] > bornes()[1]) \
+        or not (SORTIES / "evaluation_certitude.csv").exists()
 
 
 def communes_moitie(t):
@@ -320,9 +346,10 @@ def hex_rgb(h, alpha=220):
 
 def couleurs_liste(ids, dans_liste, avec_donnees, couleur):
     """Couleur de chaque territoire d'une carte de liste : celle de l'action s'il est dans la
-    liste, gris s'il a des données mais reste hors liste, noir s'il n'en a pas."""
+    liste, gris clair s'il est classé mais reste hors liste, gris foncé s'il n'est pas classé
+    (trop peu de prairies)."""
     return [hex_rgb(couleur) if i in dans_liste else hex_rgb(HORS, 200) if i in avec_donnees
-            else hex_rgb(NOIR, 230) for i in ids]
+            else hex_rgb(GRIS, 230) for i in ids]
 
 
 def deck(couches, vue_sur, info, hauteur=560):
@@ -336,10 +363,9 @@ def deck(couches, vue_sur, info, hauteur=560):
     etendue = max(b[2] - b[0], b[3] - b[1])
     zoom = 6.8 if etendue > 2 else 8.2 if etendue > 0.8 else 9.5 if etendue > 0.3 else 11
     vue = pdk.ViewState(longitude=(b[0] + b[2]) / 2, latitude=(b[1] + b[3]) / 2, zoom=zoom)
-    # Sans internet : pas de fond de carte (interrupteur dans la barre latérale), le reste marche
-    fond = st.session_state.get("fond_carte", True)
-    return pdk.Deck(layers=layers, initial_view_state=vue, map_provider="carto" if fond else None,
-                    map_style="light" if fond else None, height=hauteur,
+    # Le fond de carte est toujours affiché (il demande une connexion internet)
+    return pdk.Deck(layers=layers, initial_view_state=vue, map_provider="carto",
+                    map_style="light", height=hauteur,
                     tooltip={"html": info, "style": {"fontSize": "12px"}})
 
 
@@ -363,6 +389,10 @@ def selection_carte(evenement, couche, champ):
 
 # --- Graphiques ------------------------------------------------------------------------------
 
+# Graduations d'axe à la française (« 620 000 », « −20 000 ») : Vega écrirait « 620k »
+AXE_FR = "replace(format(datum.value, ',.0f'), regexp(',', 'g'), ' ')"
+
+
 def classement(noms, valeurs, couleur, titre_x, en_pct=False):
     """Barres horizontales triées, une par ligne, valeur écrite au bout de la barre
     (hectares, ou pourcentage si en_pct)."""
@@ -375,9 +405,10 @@ def classement(noms, valeurs, couleur, titre_x, en_pct=False):
         x=alt.X("ha:Q", title=titre_x,  # la valeur est écrite au bout de chaque barre
                 axis=alt.Axis(labels=False, ticks=False, gridOpacity=0.3)))
     barres = base.mark_bar(color=couleur, cornerRadiusEnd=4, height=14).encode(
-        tooltip=[alt.Tooltip("nom:N", title=" "), alt.Tooltip(
-            "ha:Q", title="valeur", format=".2%" if en_pct else ",.0f")])
-    textes = base.mark_text(align="left", dx=4, fontSize=11, color="#52514e").encode(text="texte:N")
+        tooltip=[alt.Tooltip("nom:N", title=" "), alt.Tooltip("texte:N", title="valeur")])
+    textes = base.mark_text(align="left", dx=4, fontSize=11,
+                            color="#d6d5cd" if st.context.theme.type == "dark" else "#52514e") \
+        .encode(text="texte:N")
     return (barres + textes).properties(height=24 * len(d) + 30)
 
 

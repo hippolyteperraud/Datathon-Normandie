@@ -1,27 +1,33 @@
-"""Carte des données : ce que l'outil voit, commune par commune, et où vérifier d'abord.
+"""Carte des données : quelles données on a où, et où il en faudrait plus.
 
-En noir, les communes où la source choisie ne dit rien. On y lit d'un coup d'œil où le diagnostic
-est sûr, où il reste à vérifier, et où une mesure de terrain serait la plus utile. Tous les textes
-sont calculés à partir des sorties du moteur et des sources en local."""
+En haut, une petite carte par source : vert, la source dit quelque chose ; noir, elle ne dit rien ;
+gris, peu ou pas de prairies. En bas, chaque donnée à collecter, ses chiffres et ses communes :
+l'état réel des prairies sorties de la déclaration (la réponse décide quelles communes entrent dans
+la liste où payer le maintien), puis les habitats prairiaux des départements sans cartographie.
+Tout est calculé à partir des sorties du moteur et des sources en local."""
 import re
 
 import pandas as pd
+import pydeck as pdk
 import streamlit as st
 
-from commun import (ACTIONS, CAT, DE_TERRITOIRE, DEPARTEMENTS, GRIS, HORS, MIN_HA, NEUTRE, NOIR, bornes,
-                    classement, communes_carte, couleurs_liste, date_source, deck, epci_carte,
-                    evaluation, exiger_sorties, ha, hex_rgb, legende, nombre, pct,
-                    selection_carte, table)
+from commun import (ACTIONS, CAT, DEPARTEMENTS, GRIS, HORS, MIN_HA, NOIR, bornes, classement,
+                    communes_carte, communes_moitie, date_source, deck, evaluation, exiger_sorties,
+                    ha, hex_rgb, legende, nombre, pct, selection_carte, table, variation)
 from prairimetre.config import CACHE, DATA
 from prairimetre.sources import SOURCES
 
-OUEST = ["14", "50", "61"]  # départements couverts par la cartographie des habitats Natura 2000
-VERIFIER = "Où vérifier d'abord"
+PLEIN, PARTIEL = CAT[2], "#8fd3b8"
 
 exiger_sorties()
 a0, an = bornes()
 t = table("communes")
-t = t.assign(sortie_nette=t.devenues_non_declare - t.venues_non_declare)
+
+# Dernier millésime de la carte d'occupation du sol de l'IGN (OCS GE) en local, par département
+millesimes = {}
+for d, m in re.findall(r"ocsge_(\d{2})_(\d{4})",
+                       " ".join(f.name for f in (DATA / "ocsge").glob("*.gpkg"))):
+    millesimes[d] = max(millesimes.get(d, 0), int(m))
 
 
 def disponible(source, cache):
@@ -49,6 +55,14 @@ def habitats_par_commune(_date):
     return set(j.insee)
 
 
+@st.cache_data(show_spinner=False)
+def contours_legers(_date):
+    """Contours très simplifiés (≈ 300 m) : assez pour les petites cartes, et bien plus légers."""
+    g = communes_carte()[["insee", "nom_officiel", "geometry"]].copy()
+    g["geometry"] = g.geometry.simplify(0.003, preserve_topology=True)
+    return g
+
+
 # La clé de cache change dès qu'une source est réimportée : les croisements se refont seuls
 lu = lucas_par_commune(date_source("lucas") + date_source("communes")) \
     .reindex(t.index, fill_value=0) if disponible("lucas", "lucas") else None
@@ -56,250 +70,213 @@ hab = habitats_par_commune(date_source("habitats_natura2000") + date_source("com
     if disponible("habitats_natura2000", "habitats_prairiaux") else None
 
 
-# --- Les vues par source : une classe par commune, sa couleur, son détail au survol --------------------
-def vue_registre():
-    classes = {
-        "sûr": (CAT[0], "diagnostic sûr : les pertes sont surtout déclarées en culture"),
-        "à vérifier": (CAT[1], "à vérifier : les pertes sont surtout des sorties de la "
-                               "déclaration"),
-        "trop peu": (GRIS, f"trop peu de prairies déclarées (moins de {MIN_HA} ha en {a0})"),
-        "aucune": (NOIR, "aucune prairie déclarée : l'outil ne voit rien"),
-    }
-    c = pd.Series("sûr", index=t.index)
-    c[t.certitude == "pertes à vérifier"] = "à vérifier"
-    c[t.statut != "calculé"] = "trop peu"
-    c[t.statut == "aucune prairie"] = "aucune"
-    detail = [f"prairies déclarées : {ha(p0)} en {a0}, {ha(pn)} en {an}"
-              + (f"<br/>sorties de la déclaration : {ha(nd)}" if nd >= 1 else "")
-              for p0, pn, nd in zip(t[f"pp_{a0}"], t[f"pp_{an}"], t.devenues_non_declare)]
-    return c, classes, pd.Series(detail, index=t.index)
+# --- Une source par petite carte : une classe par commune, chaque classe a sa couleur et son nom ---
+def src_registre():
+    c = pd.Series("suivi", index=t.index).where(t.statut == "calculé", "peu")
+    return c, {"suivi": (PLEIN, "prairies suivies"), "peu": (GRIS, f"moins de {MIN_HA} ha de prairies")}
 
 
-def vue_lucas():
-    classes = {
-        "herbe": (CAT[0], "au moins un point observé en herbe"),
-        "autre": (NEUTRE, "des points, aucun en herbe"),
-        "aucun": (NOIR, "aucun point d'enquête au sol"),
-    }
-    c = pd.Series("aucun", index=t.index)
-    c[lu.points > 0] = "autre"
-    c[lu.en_herbe > 0] = "herbe"
-    detail = [f"{nombre(p)} point{'s' if p > 1 else ''} d'enquête, dont {nombre(h)} en herbe"
-              for p, h in zip(lu.points, lu.en_herbe)]
-    return c, classes, pd.Series(detail, index=t.index)
+def src_ign():
+    editions = sorted(set(millesimes.values()), reverse=True)
+    classes = {str(m): (PLEIN if k == 0 else PARTIEL, f"édition {m}") for k, m in enumerate(editions)}
+    classes["aucune"] = (NOIR, "aucune édition")
+    return t.dep.map(lambda d: str(millesimes[d]) if d in millesimes else "aucune"), classes
 
 
-def vue_habitats():
-    classes = {
-        "cartographiés": (CAT[2], "habitats prairiaux cartographiés"),
-        "hors sites": (GRIS, "hors des sites Natura 2000 cartographiés (Calvados, Manche, Orne)"),
-        "non couvert": (NOIR, "aucune cartographie (Eure, Seine-Maritime)"),
-    }
-    c = pd.Series("non couvert", index=t.index)
-    c[t.dep.isin(OUEST)] = "hors sites"
-    c[t.index.isin(list(hab))] = "cartographiés"
-    return c, classes, c.map(lambda x: classes[x][1])
+def src_lucas():
+    c = pd.Series("point", index=t.index).where(lu.points > 0, "aucun")
+    return c, {"point": (PLEIN, "au moins un point"), "aucun": (NOIR, "aucun point")}
 
 
-VUES = {"Registre PAC": vue_registre, VERIFIER: None}
+def src_habitats():
+    c = pd.Series("rien", index=t.index)
+    c[t.index.isin(list(hab))] = "cartes"
+    return c, {"cartes": (PLEIN, "cartographiés"), "rien": (NOIR, "aucune cartographie")}
+
+
+SOURCES_CARTES = [(f"Registre PAC {a0}–{an}", src_registre,
+                   "Parcelles déclarées à la PAC, chaque année (IGN).")]
+if millesimes:
+    SOURCES_CARTES.append(("Occupation du sol (OCS GE)", src_ign,
+                           "Photos aériennes interprétées (IGN). Range prairies et cultures dans "
+                           "la même classe."))
 if lu is not None:
-    VUES["Enquête au sol (LUCAS 2022)"] = vue_lucas
+    SOURCES_CARTES.append(("Enquête au sol (LUCAS 2022)", src_lucas,
+                           "Points observés sur le terrain (Eurostat), tirés au sort."))
 if hab is not None:
-    VUES["Habitats prairiaux (Natura 2000)"] = vue_habitats
+    SOURCES_CARTES.append(("Habitats prairiaux (Natura 2000)", src_habitats,
+                           "Prairies d'intérêt européen, cartographiées dans les sites Natura "
+                           "2000 du Calvados, de la Manche et de l'Orne."))
 
 
-def ouvrir_commune(evt, cle_vue):
-    """Ouvre la fiche de la commune cliquée ; un clic ne compte qu'une fois (la sélection de la
-    carte persiste d'un rechargement à l'autre)."""
-    clic = selection_carte(evt, "donnees", "insee")
-    if clic and clic != st.session_state.get(f"_clic_{cle_vue}"):
-        st.session_state[f"_clic_{cle_vue}"] = clic
+def petite_carte(titre, source, aide):
+    """Le titre, la carte de la Normandie (figée, sans fond), la légende avec ses comptes."""
+    classe, classes = source()
+    n = classe.value_counts().reindex(list(classes), fill_value=0)
+    g = contours_legers(date_source("communes"))
+    g = g[g.insee.isin(classe.index)].copy()
+    g["classe"] = g.insee.map(lambda i: classes[classe[i]][1])
+    g["couleur"] = g.insee.map(lambda i: hex_rgb(classes[classe[i]][0], 255))
+    b = g.total_bounds
+    st.markdown(f"**{titre}**", help=aide)
+    st.pydeck_chart(pdk.Deck(
+        # Contour de la couleur de la commune : pas de jour entre les contours simplifiés
+        layers=[pdk.Layer("GeoJsonLayer", data=g.__geo_interface__, pickable=True, stroked=True,
+                          filled=True, get_fill_color="properties.couleur",
+                          get_line_color="properties.couleur", line_width_min_pixels=1)],
+        initial_view_state=pdk.ViewState(longitude=(b[0] + b[2]) / 2, latitude=(b[1] + b[3]) / 2,
+                                         zoom=5.6),
+        views=[pdk.View(type="MapView", controller=False)], map_provider=None,
+        tooltip={"html": "<b>{nom_officiel}</b><br/>{classe}", "style": {"fontSize": "12px"}}),
+        width="stretch", height=230)
+    legende([(classes[c][0], f"{classes[c][1]} : {nombre(n[c])}") for c in classes if n[c]])
+
+
+# --- Page ------------------------------------------------------------------------------------------
+st.title("Carte des données")
+st.subheader("Les données qu'on a")
+for colonne, (titre, source, aide) in zip(st.columns(len(SOURCES_CARTES)), SOURCES_CARTES):
+    with colonne:
+        petite_carte(titre, source, aide)
+
+st.subheader("Où il en faudrait plus")
+
+
+def carte_besoin(g, cle, info, elements):
+    """Carte d'un besoin et sa légende ; un clic ouvre la fiche de la commune."""
+    evt = st.pydeck_chart(deck([(g, cle)], g, info, hauteur=480), on_select="rerun",
+                          selection_mode="single-object", width="stretch", key=cle)
+    legende(elements)
+    # Un clic ne compte qu'une fois (la sélection de la carte persiste d'un rechargement à l'autre)
+    clic = selection_carte(evt, cle, "insee")
+    if clic and clic != st.session_state.get(f"_clic_{cle}"):
+        st.session_state[f"_clic_{cle}"] = clic
         st.session_state["commune"] = clic
         st.switch_page("vues/commune.py")
 
 
-# --- Page --------------------------------------------------------------------------------------------
-st.title("Carte des données")
-st.markdown("Ce que l'outil voit, commune par commune. **En noir, il ne voit rien** : c'est là "
-            "qu'une autre source ou une mesure de terrain manque.")
-f1, f2 = st.columns([4, 2])
-donnee = f1.segmented_control("Afficher", list(VUES), default="Registre PAC", key="donnee") \
-    or "Registre PAC"
-dep = f2.selectbox("Territoire", ["Normandie"] + list(DEPARTEMENTS),
-                   format_func=lambda d: DEPARTEMENTS.get(d, d), key="territoire_donnees")
-de = DE_TERRITOIRE[dep]
-ici = t.index if dep == "Normandie" else t.index[t.dep == dep]
+def chiffre(colonne, titre, valeur, note=None, aide=None):
+    colonne.metric(titre, valeur, note, delta_color="off", delta_arrow="off", border=True,
+                   height="stretch", help=aide)
 
 
-def verifier():
-    """Où vérifier d'abord : les prairies sorties de la déclaration, dont on ne sait pas ce
-    qu'elles sont devenues. Même présentation que les moyens d'agir de la page Où agir."""
-    calc = t[(t.statut == "calculé") & t.index.isin(ici)]
-    certitude = evaluation("certitude")
-    herbe = None
-    if certitude is not None:
-        o = certitude[certitude.source.str.startswith("OCS")
-                      & (certitude.groupe == "sorties de la déclaration")]
-        herbe = (o["herbe, usage agricole"] * o.ha).sum() / o.ha.sum() if len(o) else None
-    st.markdown(f"### {ACTIONS['verifier']['titre']}")
-    f3, f4 = st.columns([3, 2])
-    echelle = f3.segmented_control("Échelle", ["communes", "intercommunalités"],
-                                   default="communes", key="echelle_verifier") or "communes"
-    tailles = [20, 50, 100] if echelle == "communes" else [5, 10, 20]
-    n = f4.segmented_control("Combien", tailles, default=tailles[1],
-                             key=f"combien_verifier_{echelle}") or tailles[1]
-    if echelle == "intercommunalités":
-        u = calc.groupby("epci").agg(nom=("epci_nom", "first"),
-                                     sortie_nette=("sortie_nette", "sum"))
-    else:
-        u = calc.rename(columns={"nom_officiel": "nom"})
-    liste = u[u.sortie_nette > 0].sort_values("sortie_nette", ascending=False).head(n)
-    part = liste.sortie_nette.sum() / u.sortie_nette.clip(lower=0).sum()
+# --- Besoin 1 : que sont devenues les prairies sorties de la déclaration ? -------------------------
+st.markdown("##### 1. L'état réel des prairies sorties de la déclaration")
+st.caption("À collecter : relevés de terrain ou images satellite. Question : encore en herbe ?")
+sorties = t.devenues_non_declare
+part_sortie = sorties / t[f"pp_{a0}"]
+# Les communes, de la plus touchée à la moins touchée, qui portent ensemble la moitié des sorties
+rang = sorties[t.statut == "calculé"].sort_values(ascending=False)
+moitie = rang.index[:int((rang.cumsum() / rang.sum() < 0.5).sum() + 1)]
+liste_payer = set(communes_moitie(t))
+# Hors de la liste, la réponse décide si la commune y entre ; dans la liste, elle n'y change rien
+decisives = [i for i in moitie if i not in liste_payer]
+deja = [i for i in moitie if i in liste_payer]
+payer = ACTIONS["payer"]["titre"]
 
-    conseil = (f"Avant de compter une prairie sortie de la déclaration comme perdue, la vérifier "
-               f"sur photo aérienne ou sur place, en commençant par ces {len(liste)} {echelle} : "
-               f"elles portent {pct(part, 0)} des hectares sortis de la déclaration {de} "
-               f"({a0}–{an}, nets des retours).")
-    if lu is not None and echelle == "communes":
-        sans = liste.index[lu.loc[liste.index, "en_herbe"] == 0]
-        conseil += (f" {nombre(len(sans))} d'entre elles n'ont aucun point d'enquête au sol en "
-                    "herbe : aucune autre source ne les vérifie aujourd'hui.")
-    st.markdown(f"**Le conseil.** {conseil}")
-    st.markdown("**Pourquoi.** Le registre parcellaire ne dit pas ce que devient une prairie qui "
-                "n'est plus déclarée : changement d'exploitant, chevaux, terrain sans aide PAC, ou "
-                "vraie perte."
-                + (f" Selon la carte d'occupation du sol de l'IGN, {pct(herbe, 0)} de ces prairies "
-                   "sont encore en herbe l'année de leur sortie." if herbe is not None else ""))
-    st.caption(f"Pour : {ACTIONS['verifier']['pour']}")
+certitude, saa = evaluation("certitude"), evaluation("saa")
+c1, c2, c3, c4 = st.columns(4)
+chiffre(c1, f"Sorties de la déclaration depuis {a0}", ha(sorties.sum()),
+        "encore en herbe : ne sait pas")
+if certitude is not None:
+    p = certitude[certitude.source.str.startswith("LUCAS")
+                  & (certitude.groupe == "sorties de la déclaration")].iloc[0]
+    chiffre(c2, "Points d'enquête au sol sur ces prairies", nombre(p.prairies),
+            f"{nombre(p.prairies * p.herbe)} en herbe en {p.source.split()[-1]}",
+            "L'occupation du sol de l'IGN range prairies et cultures dans la même classe : elle "
+            "ne peut pas répondre.")
+if saa is not None:
+    s = saa.loc[(saa.saa_variation - saa.rpg_variation).abs().idxmax()]
+    chiffre(c3, f"Variation {int(s.annee)} selon le registre", ha(s.rpg_variation, signe=True),
+            f"statistique agricole : {ha(s.saa_variation, signe=True)}",
+            "Les deux sources officielles se contredisent : cela pèse sur le suivi de l'objectif "
+            "2030 en hectares.")
+chiffre(c4, "Communes où la décision en dépend", nombre(len(decisives)),
+        f"{ha(sorties[decisives].sum())} sortis",
+        f"{nombre(len(moitie))} communes portent la moitié des sorties. {nombre(len(decisives))} "
+        f"ne sont pas dans les {nombre(len(liste_payer))} communes de « {payer} » : si ces "
+        "hectares sont perdus, elles devraient y être.")
 
+FORT, CLAIR = ACTIONS["verifier"]["couleur"], "#f6b89c"
+gauche, droite = st.columns([3, 2], gap="large")
+with gauche:
+    g = communes_carte().copy()
+    calculees = set(t.index[t.statut == "calculé"])
+    fort, clair = set(decisives), set(deja)
+    g["couleur"] = [hex_rgb(FORT) if i in fort else hex_rgb(CLAIR) if i in clair
+                    else hex_rgb(HORS, 200) if i in calculees else hex_rgb(GRIS, 230) for i in g.insee]
+    g["valeur"] = g.insee.map(lambda i: f"{ha(sorties[i])} sortis, {pct(part_sortie[i], 0)} de ses prairies")
+    g["liste"] = g.insee.map(lambda i: f"dans « {payer} »" if i in liste_payer else f"hors de « {payer} »")
+    carte_besoin(g[["insee", "nom_officiel", "couleur", "valeur", "liste", "geometry"]],
+                 "besoin_sorties", "<b>{nom_officiel}</b><br/>{valeur}<br/>{liste}",
+                 [(FORT, f"hors de « {payer} », la réponse décide : {nombre(len(decisives))} "
+                         f"communes, {ha(sorties[decisives].sum())}"),
+                  (CLAIR, f"déjà dedans : {nombre(len(deja))} communes, {ha(sorties[deja].sum())}"),
+                  (HORS, f"autres : {nombre(len(calculees) - len(moitie))}"),
+                  (GRIS, f"moins de {MIN_HA} ha de prairies : {nombre(len(t) - len(calculees))}")])
+with droite:
+    tete = decisives[:15]
+    st.altair_chart(classement([f"{t.nom_officiel[i]} ({pct(part_sortie[i], 0)})" for i in tete],
+                               sorties[tete], FORT,
+                               f"hectares sortis (part de ses prairies de {a0})"), width="stretch")
+
+# --- Besoin 2 : les départements où aucun habitat prairial n'est cartographié ----------------------
+zones = table("communes_zones")
+en_site = zones[zones.zone == "sites protégés"].set_index("insee").reindex(t.index)
+connus = zones[(zones.zone == "habitats") & zones.prairies.notna()].insee
+sans_carte = sorted(set(t.dep) - set(t.dep[connus]))
+if hab is not None and sans_carte:
+    noms_dep = " et ".join(DEPARTEMENTS[d] for d in sans_carte)
+    ici = en_site[t.dep.isin(sans_carte) & (en_site.prairies >= 1)].sort_values("prairies", ascending=False)
+    st.markdown(f"##### 2. Les habitats prairiaux des sites protégés : {noms_dep}")
+    st.caption("À collecter : cartographie des habitats. Question : quels habitats sont touchés ?")
+    c1, c2, c3, c4 = st.columns(4)
+    chiffre(c1, "Prairies en site protégé, sans carte des habitats", ha(ici.prairies.sum()),
+            f"{nombre(len(ici))} communes")
+    chiffre(c2, f"Retournées dessus depuis {a0}", ha(ici.culture.sum()), "habitat touché : ne sait pas")
+    chiffre(c3, f"Sorties de la déclaration dessus depuis {a0}", ha(ici.non_declare.sum()),
+            "habitat touché : ne sait pas")
+    h = evaluation("habitats")
+    if h is not None:
+        h = h[h.code == "total"].iloc[0]
+        chiffre(c4, "Habitats retournés, là où ils sont cartographiés", ha(h.retourne_ha),
+                f"sur {ha(h.surface_cartographiee_ha)} cartographiés",
+                "Ce résultat ne vaut que pour les départements cartographiés : ailleurs, on ne "
+                "sait pas si les habitats tiennent aussi bien.")
     gauche, droite = st.columns([3, 2], gap="large")
-    rangs = {i: r + 1 for r, i in enumerate(liste.index)}
     with gauche:
-        if echelle == "intercommunalités":
-            g, cle = epci_carte(), "epci"
-            g = g[g.epci.isin(u.index)].copy()
-            g["nom"] = g.epci.map(u.nom)
-        else:
-            g, cle = communes_carte(), "insee"
-            g = (g if dep == "Normandie" else g[g.dep == dep]).copy()
-            g["nom"] = g.nom_officiel
-        couleur = ACTIONS["verifier"]["couleur"]
-        g["couleur"] = couleurs_liste(g[cle], rangs, set(u.index), couleur)
-        g["valeur"] = g[cle].map(u.sortie_nette).map(
-            lambda v: "sans donnée" if pd.isna(v) else f"{ha(v)} sortis de la déclaration")
-        g["rang"] = g[cle].map(lambda i: f"n° {rangs[i]} de la liste" if i in rangs else
-                               "hors de la liste" if i in u.index else
-                               f"non classée : moins de {MIN_HA} ha de prairies, ou aucune")
-        evt = st.pydeck_chart(
-            deck([(g[[cle, "nom", "couleur", "valeur", "rang", "geometry"]], "donnees")], g,
-                 "<b>{nom}</b><br/>{valeur}<br/>{rang}"),
-            on_select="rerun", selection_mode="single-object", width="stretch",
-            key=f"carte_verifier_{echelle}")
-        elements = [(couleur, "à vérifier d'abord"), (HORS, "hors de la liste")]
-        if (~g[cle].isin(u.index)).any():
-            elements.append((NOIR, f"non classée : moins de {MIN_HA} ha de prairies, ou aucune"))
-        legende(elements)
-        if echelle == "communes":
-            ouvrir_commune(evt, "verifier")
+        g = communes_carte().copy()
+        cibles = set(ici.index)
+        g["couleur"] = [hex_rgb(FORT) if i in cibles else hex_rgb(HORS, 200) for i in g.insee]
+        g["valeur"] = g.insee.map(lambda i: f"{ha(en_site.prairies[i])} de prairies en site protégé")
+        g["perte"] = g.insee.map(lambda i: f"{ha(en_site.culture[i])} retournés")
+        carte_besoin(g[["insee", "nom_officiel", "couleur", "valeur", "perte", "geometry"]],
+                     "besoin_habitats", "<b>{nom_officiel}</b><br/>{valeur}<br/>{perte}",
+                     [(FORT, f"prairies en site protégé, sans carte : {nombre(len(ici))} communes"),
+                      (HORS, f"autres : {nombre(len(g) - len(ici))}")])
     with droite:
-        tete = liste.head(15)
-        st.markdown(f"Les {len(tete)} premières")
-        st.altair_chart(classement(tete.nom, tete.sortie_nette, couleur, "hectares"),
-                        width="stretch")
-        export = pd.DataFrame({"rang": range(1, len(liste) + 1), "nom": liste.nom.values,
-                               "sortie_nette_ha": liste.sortie_nette.round(0).values})
-        st.download_button(f"Télécharger la liste ({len(liste)} {echelle}, CSV)",
-                           export.to_csv(sep=";", decimal=",", index=False).encode("utf-8-sig"),
-                           f"prairimetre_a_verifier_{echelle}.csv", "text/csv",
-                           icon=":material/download:")
-    st.markdown("**Indicateur de suivi.** "
-                + (f"La part de ces prairies encore en herbe : {pct(herbe, 0)} aujourd'hui "
-                   "selon l'OCS GE ; à affiner par les vérifications de terrain."
-                   if herbe is not None else
-                   "La part de ces prairies encore en herbe (lancer « Évaluer » pour la "
-                   "mesurer)."))
+        tete = ici.index[:15]
+        st.altair_chart(classement(t.nom_officiel[tete], ici.prairies[tete], FORT,
+                                   "hectares de prairies en site protégé"), width="stretch")
 
-
-def par_source():
-    """Une source : chaque commune colorée selon ce que la source en dit, noir si rien."""
-    classe, CLASSES, detail = VUES[donnee]()
-    n = classe[ici].value_counts().reindex(list(CLASSES), fill_value=0)
-    total = len(ici)
-    if donnee == "Registre PAC":
-        verif = ici[classe[ici] == "à vérifier"]
-        st.markdown(f"#### Sur les {nombre(total)} communes {de}, le diagnostic est sûr "
-                    f"pour {nombre(n['sûr'])}, à vérifier pour {nombre(n['à vérifier'])}, "
-                    f"impossible pour {nombre(n['trop peu'] + n['aucune'])} faute d'assez de "
-                    "prairies déclarées.")
-        sorties = t.devenues_non_declare
-        st.markdown(f"Les communes à vérifier portent "
-                    f"{pct(sorties[verif].sum() / sorties[ici].sum(), 0)} des prairies sorties "
-                    f"de la déclaration depuis {a0} : le registre ne dit pas si l'herbe y est "
-                    f"encore. Par où commencer : « {VERIFIER} ».")
-    elif donnee.startswith("Enquête"):
-        st.markdown(f"#### {nombre(n['aucun'])} communes {de} sur {nombre(total)} n'ont "
-                    f"aucun point d'enquête au sol ; {nombre(n['herbe'])} ont au moins un point "
-                    f"observé en herbe.")
-        st.markdown(f"L'enquête européenne LUCAS a placé {nombre(lu.loc[ici, 'points'].sum())} "
-                    f"points dans les communes {de}, tirés au sort. Elle sert à vérifier les "
-                    "chiffres régionaux, pas commune par commune.")
-    elif n["cartographiés"] == 0:
-        st.markdown(f"#### Aucune cartographie des habitats prairiaux d'intérêt européen dans "
-                    f"les communes {de}.")
-    else:
-        st.markdown(f"#### Les habitats prairiaux d'intérêt européen ne sont cartographiés que "
-                    f"dans {nombre(n['cartographiés'])} communes {de} sur {nombre(total)}.")
-        st.markdown("La cartographie couvre seulement les sites Natura 2000 du Calvados, de la "
-                    "Manche et de l'Orne. Ailleurs, on ne sait pas où sont les prairies les plus "
-                    "riches.")
-
-    g = communes_carte()
-    g = (g if dep == "Normandie" else g[g.dep == dep]).copy()
-    g["classe"] = g.insee.map(lambda i: CLASSES[classe[i]][1])
-    g["couleur"] = g.insee.map(lambda i: hex_rgb(CLASSES[classe[i]][0], 230))
-    g["detail"] = g.insee.map(detail)
-    evt = st.pydeck_chart(
-        deck([(g[["insee", "nom_officiel", "classe", "detail", "couleur", "geometry"]],
-               "donnees")], g, "<b>{nom_officiel}</b><br/>{classe}<br/>{detail}", hauteur=600),
-        on_select="rerun", selection_mode="single-object", width="stretch",
-        key=f"carte_{donnee}")
-    legende([(couleur, f"{texte} ({nombre(n[c])})") for c, (couleur, texte) in CLASSES.items()
-             if n[c]])
-    ouvrir_commune(evt, donnee)
-
-
-if donnee == VERIFIER:
-    verifier()
-else:
-    par_source()
-
-# --- Ce qui n'a pas de carte, et le tableau complet ---------------------------------------------------
-ocsge = sorted(re.findall(r"ocsge_(\d{2})_(\d{4})", " ".join(f.name for f in
-                                                           (DATA / "ocsge").glob("*.gpkg"))))
-st.caption("Un clic sur une commune ouvre sa fiche."
-           + (" La carte d'occupation du sol de l'IGN (OCS GE) couvre toutes les communes, sans "
-              "trou (" + ", ".join(f"{DEPARTEMENTS[d]} {m}" for d, m in ocsge) + ") : elle n'a "
-              "donc pas de carte ici, mais ne dit rien des prairies après "
-              f"{max(m for _, m in ocsge)}." if ocsge else ""))
-
-
-def libelles(vue):
-    """Classe de chaque commune, en toutes lettres, pour le tableau téléchargé."""
-    c, classes, _ = vue()
-    return c.map(lambda x: classes[x][1]).values
-
-
+# --- Le tableau complet, téléchargeable --------------------------------------------------------------
 export = pd.DataFrame({
     "insee": t.index, "commune": t.nom_officiel.values, "departement": t.dep.values,
-    "registre_pac": libelles(vue_registre),
     f"prairies_{a0}_ha": t[f"pp_{a0}"].round(0).values,
-    "sorties_declaration_ha": t.devenues_non_declare.round(0).values})
+    "retournees_ha": t.devenues_culture.round(0).values,
+    "sorties_declaration_ha": sorties.round(0).values,
+    "moitie_des_sorties": t.index.isin(moitie),
+    "liste_payer_le_maintien": t.index.isin(liste_payer),
+    "prairies_en_site_protege_ha": en_site.prairies.round(0).values,
+    "site_protege_sans_carte_habitats": t.dep.isin(sans_carte).values & (en_site.prairies >= 1).values})
 if lu is not None:
     export["points_lucas"] = lu.points.values
     export["points_lucas_en_herbe"] = lu.en_herbe.values
 if hab is not None:
-    export["habitats_natura2000"] = libelles(vue_habitats)
-st.download_button(f"Télécharger la couverture des données ({nombre(len(export))} communes, CSV)",
+    export["habitats_natura2000"] = t.index.isin(list(hab))
+if millesimes:
+    export["carte_ign_millesime"] = t.dep.map(millesimes).values
+st.download_button(f"Télécharger le tableau ({nombre(len(export))} communes, CSV)",
                    export.to_csv(sep=";", decimal=",", index=False).encode("utf-8-sig"),
                    "prairimetre_couverture_donnees.csv", "text/csv", icon=":material/download:",
                    key="dl_couverture")

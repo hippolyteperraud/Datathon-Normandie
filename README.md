@@ -27,7 +27,7 @@ Trois questions, pas une de plus :
 
 1. **Combien perd-on, et pourquoi l'alerte ne sonne plus ?** → Où agir (en-tête et moyen 1)
 2. **Les protections retiennent-elles les prairies ?** (interaction humain-nature, sujet 2) → Où agir (moyen 2), preuves dans Données et méthode
-3. **Où agir, et avec qui ?** → Où agir, Ma commune, Carte des données (où vérifier d'abord)
+3. **Où agir, et avec qui ?** → Où agir, Ma commune, Carte des données (où il faut des données)
 
 **Règle** : une donnée, un calcul ou un écran qui ne répond à aucune des trois questions sort
 du projet. Les données écartées sont rangées dans `data/_hors_perimetre/` (déplacées, pas
@@ -89,13 +89,13 @@ python -m streamlit run app/accueil.py   # puis ouvrir http://localhost:8501
 | Page | Question | Pour qui |
 |---|---|---|
 | Où agir (accueil) | Trois moyens d'agir : 1. suivre l'objectif 2030 en hectares, 2. payer le maintien des prairies là où l'on retourne (communes, intercommunalités ou aires de captage, avec leurs interlocuteurs), 3. s'appuyer sur les communes qui gardent leurs prairies. Pour chacun : le conseil, pourquoi, pour qui, où, l'indicateur de suivi | Région, chambre d'agriculture, DDT(M), PNR, syndicats d'eau, Agences de l'eau |
-| Ma commune | Qu'a perdu la commune, comment, quelle action (la même que dans Où agir) et avec qui ? | Élus, EPCI, habitants |
-| Carte des données | Ce que l'outil voit, commune par commune : en noir, là où une source ne dit rien (registre PAC, enquête au sol LUCAS, habitats Natura 2000) ; et où vérifier d'abord les prairies sorties de la déclaration | Région, DDT(M), jury, experts |
-| Données et méthode | Preuves, tests, définitions, sources, moteur | Jury, experts, équipe |
-| Lexique | Les mots de l'outil | Tous |
+| Ma commune | Combien d'hectares la commune a perdus, en tout et zone par zone (zones humides, sites protégés, captages…) ? « Ne sait pas » si la source ne dit rien | Élus, EPCI, habitants |
+| Carte des données | Quelles données on a où (registre PAC, occupation du sol, enquête au sol LUCAS, habitats Natura 2000 ; en noir, là où une source ne dit rien), et où il en faudrait plus : l'état réel des prairies sorties de la déclaration (communes où la réponse change la décision de payer le maintien), les habitats prairiaux des départements sans cartographie | Région, DDT(M), jury, experts |
+| Données et méthode | Preuves (avec les tests qui les vérifient), sources, moteur (nouveau registre) | Jury, experts, équipe |
+| Lexique et définitions | Les mots de l'outil, et les quatre chiffres qui circulent sur les prairies | Tous |
 
-Barre latérale : interrupteur du fond de
-carte (à couper sans internet : les cartes restent lisibles).
+Menu : un bandeau en haut de la page, toujours visible. Le fond de carte demande une connexion
+internet.
 
 L'appli lit les tables de `sorties/` (relues dès que le moteur les recalcule) et appelle le
 moteur de deux façons : en l'important (`parcelles_commune`) et en lançant ses commandes

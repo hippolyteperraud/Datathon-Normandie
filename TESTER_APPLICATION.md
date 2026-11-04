@@ -53,12 +53,12 @@ machine : elle n'est pas accessible depuis le réseau.
 | Page | Ce qu'elle montre |
 |---|---|
 | Où agir (accueil) | Les trois moyens d'agir, chacun avec son conseil, ses territoires et son indicateur de suivi |
-| Ma commune | Le diagnostic d'une commune, l'action qui s'y applique, la carte de ses parcelles |
-| Carte des données | Ce que l'outil voit dans chaque commune (en noir, là où il ne voit rien), et où vérifier d'abord |
-| Données et méthode | Les preuves, les tests, les sources, et la mise à jour des données |
+| Ma commune | Les hectares d'une commune, en tout et zone par zone, la carte de ses parcelles |
+| Carte des données | Quelles données on a où (en noir, là où une source ne dit rien), et où il en faudrait plus |
+| Données et méthode | Les preuves (et les tests qui les vérifient), les sources, et la mise à jour des données |
+| Lexique et définitions | Les mots de l'outil, et les quatre chiffres qui circulent sur les prairies |
 
-Sans connexion internet, désactiver « Fond de carte » dans la barre latérale : les cartes
-restent lisibles.
+Le fond de carte demande une connexion internet.
 
 ## En cas de problème
 

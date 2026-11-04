@@ -10,6 +10,7 @@ Sorties (dossier sorties/), chacune lue par l'application :
 - bilan_direct.csv : prairies disparues et apparues entre le début et la fin ;
 - cultures_destination.csv : ce que sont devenues les prairies retournées ;
 - communes.csv : une ligne par commune (pertes, mécanisme, certitude, zonages, contexte agricole) ;
+- communes_zones.csv : ce que sont devenues les prairies de chaque commune, zone par zone ;
 - captages.csv, communes_captages.csv : les aires d'alimentation de captage d'eau potable.
 """
 import ast
@@ -18,7 +19,7 @@ import numpy as np
 import pandas as pd
 
 from .config import ANNEE_OBJECTIF, ANNEE_REFERENCE_OBJECTIF, CACHE, MIN_HA, RECENT, SORTIES, annees
-from .donnees import FAMILLES, ZONAGES, communes, prairies, rpg, zonage
+from .donnees import FAMILLES, ZONAGES, communes, habitats_prairiaux, prairies, rpg, zonage
 from .suivi import CATEGORIES, avec_commune, categorie, croiser, devenir, origine
 
 FLUX = {"culture": "culture", "non déclaré": "non_declare", "prairie temporaire": "temporaire"}
@@ -275,6 +276,43 @@ def table_communes():
     return t
 
 
+def zones_communes():
+    """Une ligne par commune et par zone : surface des prairies du début dans la zone, et ce
+    qu'elle est devenue à la fin. Une prairie compte dans une zone par son point intérieur (comme
+    partout), et au prorata de sa surface pour les habitats (comme dans l'évaluation). Valeurs
+    vides : la source ne dit rien de cette commune (habitats cartographiés seulement dans les sites
+    Natura 2000 du Calvados, de la Manche et de l'Orne)."""
+    import geopandas as gpd
+    a0, an, _ = periodes()
+    z, d = zonages_annee(a0), devenir(a0, an)
+    h = habitats_prairiaux()
+    m = croiser(prairies(a0), h.assign(categorie="habitat"))
+    habitat = m["habitat"] if "habitat" in m else pd.Series(0.0, index=m.index)
+    zones = {
+        "zones humides": z.z_bcae_zones_humides_tourbieres | z.z_zones_humides_dreal
+        | z.z_par7_zones_humides_est,
+        "sites protégés": z.z_site,
+        "prairies sensibles": z.z_prairies_sensibles,
+        "ZNIEFF": z.z_znieff1,
+        "captages": z.z_aires_alimentation_captages,
+        "habitats": (habitat / m.ha).fillna(0),
+    }
+    cols = {"ha": "prairies", "prairie permanente": "toujours", "culture": "culture",
+            "non déclaré": "non_declare"}
+    c = communes()
+    cartographiees = set(gpd.sjoin(h[["geometry"]], c[["insee", "geometry"]],
+                                   predicate="intersects").insee)
+    lignes = []
+    for zone, part in zones.items():
+        g = d[list(cols)].rename(columns=cols).mul(np.asarray(part, float), axis=0) \
+            .groupby(z.insee.values).sum().reindex(c.insee).fillna(0)
+        g["autre"] = (g.prairies - g.toujours - g.culture - g.non_declare).clip(lower=0)
+        if zone == "habitats":
+            g.loc[~g.index.isin(cartographiees)] = np.nan
+        lignes.append(g.assign(zone=zone).rename_axis("insee").reset_index())
+    return pd.concat(lignes)
+
+
 # --- Captages -----------------------------------------------------------------------------------
 
 def _intervenant(texte):
@@ -374,6 +412,7 @@ def calculer():
     objectif().to_csv(SORTIES / "objectif.csv", index=False)
     t = table_communes()
     t.to_csv(SORTIES / "communes.csv")
+    zones_communes().to_csv(SORTIES / "communes_zones.csv", index=False)
     aac, par_commune = table_captages(t)
     aac.to_csv(SORTIES / "captages.csv")
     par_commune.rename(columns={"ha": "prairies_ha"}).to_csv(SORTIES / "communes_captages.csv",
