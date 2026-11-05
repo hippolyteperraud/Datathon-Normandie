@@ -17,8 +17,13 @@ from humain import bandeau, fois_caen, pourquoi
 from prairimetre.config import MIN_HA, RECENT
 
 exiger_sorties()
-a0, an, r0 = bornes(avec_recent=True)
+a0, an = bornes()
 t, k, cc = table("communes"), table("captages"), table("communes_captages")
+A_communes = [int(c[3:]) for c in t.columns if c.startswith("pp_")]
+r0 = an - RECENT
+if r0 not in A_communes:
+    candidats = [a for a in A_communes if a <= r0]
+    r0 = candidats[-1] if candidats else a0
 bilan, obj = table("bilan_direct"), table("objectif")
 cl, certitude = evaluation("classes", index_col=0), evaluation("certitude")
 calc = t[t.statut == "calculé"]
