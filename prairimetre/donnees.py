@@ -49,12 +49,20 @@ def lire(chemin, **kw):
     return g.reset_index(drop=True)
 
 
+_MEMOIRE = {}
+
+
 def en_cache(nom, fabrique):
+    if nom in _MEMOIRE:
+        return _MEMOIRE[nom]
     f = CACHE / f"{nom}.parquet"
     if f.exists():
-        return gpd.read_parquet(f)
+        g = gpd.read_parquet(f)
+        _MEMOIRE[nom] = g
+        return g
     g = fabrique()
     g.to_parquet(f)
+    _MEMOIRE[nom] = g
     return g
 
 

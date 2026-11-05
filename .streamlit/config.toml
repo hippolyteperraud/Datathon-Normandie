@@ -32,6 +32,9 @@ serverAddress = "localhost"
 toolbarMode = "minimal"  # pas de bouton « Deploy » : l'appli reste sur cette machine
 
 [server]
-address = "localhost"  # n'écoute que sur cette machine, pas sur le réseau local
+address = "0.0.0.0"
 headless = true
+fileWatcherType = "none"
+runOnSave = false
+fastReruns = true
 maxUploadSize = 2000  # Mo : une OCS GE départementale pèse environ 550 Mo
