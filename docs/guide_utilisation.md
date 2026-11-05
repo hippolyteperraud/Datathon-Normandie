@@ -15,11 +15,11 @@ Ce document constitue le manuel de référence complet de la branche **`satellit
 | `prairimetre/` | Moteur de calcul géospatial, indicateurs, évaluation et télédétection Sentinel-2 | Oui |
 | `app/` | Application interactive Streamlit (5 vues dans `app/vues/` + `commun.py` + `humain.py`) | Oui |
 | `sorties/` | **Tables de résultats CSV précalculées** lues directement par l'application | Oui |
-| `tests/` | Suite de tests unitaires rapides sur géométries synthétiques et profils NDVI | Local / Livrable |
+| `tests/` | Suite de tests unitaires sur géométries synthétiques et profils NDVI | Local / Livrable |
 | `docs/` | Documentation technique, méthodologique, audit parcellaire et présent guide | Oui |
 | `importer_donnees.py` | Script d'acquisition automatisée des 24 sources ouvertes (IGN, data.gouv.fr, Eurostat) | Local / Livrable |
-| `data/` | Données géographiques brutes et recadrées sur la Normandie (`~736 Mo` à `6,7 Go`) | Non (trop volumineux) |
-| `cache/` | Fichiers intermédiaires GeoParquet (`pp_*.parquet`, `devenir_*.parquet`, `zonages_*.parquet`, `~637 Mo`) | Non (régénérable) |
+| `data/` | Données géographiques brutes et recadrées sur la Normandie | Non (trop volumineux) |
+| `cache/` | Fichiers intermédiaires GeoParquet (`pp_*.parquet`, `devenir_*.parquet`, `zonages_*.parquet`) | Non (régénérable) |
 | `livraison/` | Archives `.zip` générées par la commande `python -m prairimetre livrer` | Non |
 
 ---
@@ -47,31 +47,20 @@ pip install geopandas pyogrio pyarrow shapely pyproj pandas numpy requests trust
 
 ---
 
-## 3. Démarrage immédiat vs Recalcul complet (Important)
+## 3. Lancement de l'application
 
-### A. Lancer l'application immédiatement (3 secondes, 0 calcul)
-
-**Vous n'avez PAS besoin de télécharger les 6,7 Go de l'IGN ni de lancer 3 heures de calcul pour faire tourner l'application.**
-Toutes les tables de résultats (`communes.csv`, `communes_zones.csv`, `captages.csv`, `serie_region.csv`, `bilan_direct.csv`, `objectif.csv`, `evaluation_*.csv`, `audit_satellite_parcelles.csv`, `zones_noires_satellite.csv`) sont **déjà générées dans `sorties/`**.
+Toutes les tables de résultats (`communes.csv`, `communes_zones.csv`, `captages.csv`, `serie_region.csv`, `bilan_direct.csv`, `objectif.csv`, `evaluation_*.csv`, `verification_satellite_30_parcelles.csv`) sont déjà générées dans `sorties/`, ce qui permet d'ouvrir l'application directement sans recalcul préalable :
 
 ```bash
 python -m streamlit run app/accueil.py
 ```
 Ouvrez ensuite **http://localhost:8501** dans votre navigateur.
 
-### B. Pourquoi un calcul peut prendre 3 heures chez un coéquipier (et comment l'éviter)
-
-1. **`python importer_donnees.py` complet** télécharge ~6,7 Go sur les serveurs WFS/Atom de l'IGN (8 millésimes RPG + 5 départements OCS GE + zonages). La bande passante WFS de l'IGN impose plusieurs heures de téléchargement (et ~6 h supplémentaires avec `--avec-officielle`).
-2. **Double cache du moteur (`cache/` + mémoire vive `_MEMOIRE`)** :
-   - Sur la branche `satellite-vision`, `prairimetre/donnees.py` et `prairimetre/suivi.py` intègrent un **cache en mémoire RAM** (`_MEMOIRE` et `_MEMOIRE_SUIVI`) en complément du cache disque GeoParquet (`cache/`).
-   - Avec `cache/` présent, **`python -m prairimetre calculer` s'exécute en 88 secondes** (trace dans `sorties/sobriete.csv`).
-   - Pour partager l'environnement de calcul avec un binôme sans attendre, partagez simplement le dossier `cache/` (~637 Mo).
-
 ---
 
 ## 4. Le Moteur (`prairimetre/`) — Modules et Commandes CLI
 
-### 4.1 Architecture des 9 modules du paquet `prairimetre`
+### 4.1 Architecture des modules du paquet `prairimetre`
 
 | Module | Rôle et responsabilités techniques |
 | :--- | :--- |
@@ -98,11 +87,11 @@ python -m prairimetre etat
 python -m prairimetre controler
 python -m prairimetre controler --annee 2025
 
-# 3. Calculer tous les indicateurs (génère les tables dans sorties/ ; ~88 s avec cache)
+# 3. Calculer tous les indicateurs (génère les tables dans sorties/)
 python -m prairimetre calculer
 
 # 4. Évaluer les preuves scientifiques (génère evaluation_*.csv dans sorties/)
-python -m prairimetre evaluer --rapide   # Sans recalculer le croisement lourd OCS GE (~30 s)
+python -m prairimetre evaluer --rapide   # Sans recalculer le croisement OCS GE
 python -m prairimetre evaluer            # Complet avec croisement OCS GE & LUCAS
 
 # 5. Générer les tables de télédétection satellitaire Sentinel-2 dans sorties/
@@ -122,8 +111,8 @@ python -m prairimetre importer rpg RPG_R28_2025.7z --annee 2025
 python -m prairimetre mettre-a-jour
 
 # 9. Créer le paquet de livraison zip dans livraison/
-python -m prairimetre livrer                  # Code + sorties/ + docs/ + manifest (~1,5 Mo)
-python -m prairimetre livrer --avec-donnees   # Archive complète incluant data/ (~6,7 Go)
+python -m prairimetre livrer                  # Code + sorties/ + docs/ + manifest
+python -m prairimetre livrer --avec-donnees   # Archive complète incluant data/
 ```
 
 ---
@@ -158,7 +147,7 @@ $$\text{NDVI} = \frac{\text{NIR} - \text{Red}}{\text{NIR} + \text{Red}} \in [-1\
 
 ## 6. Suite de Tests Automatisés (`tests/test_moteur.py`)
 
-Les tests s'exécutent en **moins d'une seconde** sur des géométries synthétiques en mémoire (aucun besoin du dossier `data/`).
+Les tests s'exécutent sur des géométries synthétiques en mémoire (aucun besoin du dossier `data/`).
 
 ### Lancer tous les tests
 
@@ -201,8 +190,7 @@ L'application est structurée autour de `app/accueil.py`, `app/commun.py` (charg
 
 | Problème rencontré | Cause technique | Solution |
 | :--- | :--- | :--- |
-| **Le calcul tourne depuis plusieurs heures chez un coéquipier** | Il a lancé `importer_donnees.py` (6,7 Go sur serveurs lents IGN) ou `calculer`/`evaluer` sur une ancienne branche sans le cache RAM `_MEMOIRE`. | Arrêter avec `Ctrl + C`. Récupérer la branche `satellite-vision` où `sorties/*.csv` est déjà prêt, puis lancer directement `streamlit run app/accueil.py`. |
 | **Les polygones des cartes apparaissent gris/transparents sans couleurs** | Sous `pandas >= 3.0`, appliquer `.map()` sur une colonne `StringDtype` (`g.insee`) convertit les listes `[R, G, B, A]` en chaînes de caractères `"[R, G, B, A]"`. | Corrigé dans `app/vues/donnees.py` par l'utilisation de listes en compréhension `[hex_rgb(...) for i in g.insee]`. |
-| **Une des mini-cartes ne s'affiche pas dans le navigateur** | Les navigateurs limitent le nombre de contextes WebGL simultanés (souvent 8 à 16 par onglet). | Corrigé dans `app/vues/donnees.py` en désactivant la couche WebGL de tuiles (`map_provider=None`) sur les 4 mini-cartes de comparaison. |
+| **Une des mini-cartes ne s'affiche pas dans le navigateur** | Les navigateurs limitent le nombre de contextes WebGL simultanés par onglet. | Corrigé dans `app/vues/donnees.py` en désactivant la couche WebGL de tuiles (`map_provider=None`) sur les 4 mini-cartes de comparaison. |
 | **Modification de `LEXIQUE` ou d'une constante dans `commun.py` non visible** | Streamlit garde en mémoire les modules importés tant que le processus Python tourne. | `app/vues/lexique.py` recharge dynamiquement `commun` via `importlib.reload(commun)` ; pour les autres vues, relancer `streamlit run app/accueil.py`. |
 | **Erreur `.venv-linux` sous WSL (`python3.12: not found`)** | L'ancien dossier `.venv-linux` pointait vers Python 3.12 alors qu'Ubuntu 26.04 utilise Python 3.14. | Activer `~/.venv-datathon` (`source ~/.venv-datathon/bin/activate`) créé avec le Python natif de la distribution WSL. |
