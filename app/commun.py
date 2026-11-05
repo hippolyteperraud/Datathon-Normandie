@@ -186,7 +186,7 @@ def _evaluation(nom, _date, **kw):
     return pd.read_csv(SORTIES / f"evaluation_{nom}.csv", **kw)
 
 
-def bornes():
+def bornes(avec_recent=False):
     """Première et dernière année des résultats affichés, lues dans sorties/ : les pages restent
     cohérentes même si un registre vient d'être téléchargé sans être encore calculé."""
     f = SORTIES / "communes.csv"
@@ -195,6 +195,14 @@ def bornes():
                    if re.fullmatch(r"pp_\d{4}", c))
     else:
         A = annees()
+    if not A:
+        return (None, None, None) if avec_recent else (None, None)
+    if avec_recent:
+        r0 = A[-1] - RECENT
+        if r0 not in A:
+            candidats = [a for a in A if a <= r0]
+            r0 = candidats[-1] if candidats else A[0]
+        return A[0], A[-1], r0
     return (A[0], A[-1]) if A else (None, None)
 
 

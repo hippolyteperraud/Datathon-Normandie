@@ -11,8 +11,7 @@ from prairimetre.config import RECENT
 from prairimetre.indicateurs import parcelles_commune
 
 exiger_sorties()
-a0, an = bornes()
-r0 = an - RECENT
+a0, an, r0 = bornes(avec_recent=True)
 t, k, cc = table("communes"), table("captages"), table("communes_captages")
 
 

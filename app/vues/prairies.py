@@ -17,8 +17,7 @@ from humain import bandeau, fois_caen, pourquoi
 from prairimetre.config import MIN_HA, RECENT
 
 exiger_sorties()
-a0, an = bornes()
-r0 = an - RECENT
+a0, an, r0 = bornes(avec_recent=True)
 t, k, cc = table("communes"), table("captages"), table("communes_captages")
 bilan, obj = table("bilan_direct"), table("objectif")
 cl, certitude = evaluation("classes", index_col=0), evaluation("certitude")
@@ -33,7 +32,8 @@ sorties = region[("disparues_devenues", "non déclaré")]
 ref = obj.iloc[0]
 a_ref, a_obj = int(ref.annee_reference), int(ref.annee_objectif)
 niveau = obj.set_index("annee").prairies_ha
-manque = ref.reference_ha - niveau.loc[an]          # > 0 : il manque des prairies
+ref_ha = ref.reference_ha if pd.notna(ref.reference_ha) else (niveau.loc[a_ref] if a_ref in niveau.index else niveau.iloc[0])
+manque = ref_ha - (niveau.loc[an] if an in niveau.index else niveau.iloc[-1])
 effort = manque / max(a_obj - an, 1)                # à regagner chaque année d'ici a_obj
 n_moitie = len(communes_moitie(t))
 exemples = calc[calc.mecanisme == ACTIONS["exemple"]["mecanisme"]]
@@ -114,13 +114,14 @@ def suivre():
                 f"certaines ; vérifier les {arrondi_ha(sorties)} ha sortis de la déclaration avant "
                 "de les compter (page Carte des données).")
     rubrique("Le conseil", conseil)
-    chute = niveau.diff()
-    pire = int(chute.idxmin())
+    chute = niveau.diff().dropna()
+    pire = int(chute.idxmin()) if len(chute) else an
+    pire_chute = chute.min() if len(chute) else 0
     rubrique("Pourquoi", f"Les pertes se partagent entre {arrondi_ha(retournees)} ha retournés en "
              f"culture, une perte certaine, et {arrondi_ha(sorties)} ha sortis de la déclaration"
              + (f", dont {pct(herbe, 0)} encore en herbe selon la carte d'occupation du sol de "
                 "l'IGN" if herbe is not None else "")
-             + f". La plus forte baisse annuelle date de {pire} ({ha(chute.min(), signe=True)}).")
+             + f". La plus forte baisse annuelle date de {pire} ({ha(pire_chute, signe=True)}).")
     st.caption(f"Pour : {ACTIONS['suivre']['pour']}")
 
     gauche, droite = st.columns([3, 2], gap="large")
@@ -132,9 +133,9 @@ def suivre():
             y=alt.Y("ha:Q", title="hectares de prairies déclarées", scale=alt.Scale(zero=False),
                     axis=alt.Axis(format="~s")),
             tooltip=[alt.Tooltip("année:O"), alt.Tooltip("ha:Q", format=",.0f")])
-        cible = alt.Chart(pd.DataFrame({"y": [ref.reference_ha]})).mark_rule(
+        cible = alt.Chart(pd.DataFrame({"y": [ref_ha]})).mark_rule(
             color="#52514e", strokeDash=[4, 3]).encode(y="y:Q")
-        texte = alt.Chart(pd.DataFrame({"y": [ref.reference_ha], "x": [str(a0)]})).mark_text(
+        texte = alt.Chart(pd.DataFrame({"y": [ref_ha], "x": [str(a0)]})).mark_text(
             align="left", dy=-7, fontSize=11, color="#52514e").encode(
             y="y:Q", x="x:O", text=alt.value(f"niveau de {a_ref}, à retrouver en {a_obj}"))
         st.altair_chart((ligne + cible + texte).properties(height=260), width="stretch")
@@ -153,9 +154,10 @@ def suivre():
                                     for d in dep_solde.index], -dep_solde.values,
                                    ACTIONS["suivre"]["couleur"], "hectares perdus"),
                         width="stretch")
+    an_prec = int(niveau.index[niveau.index < an].max()) if (niveau.index < an).any() else a0
     rubrique("Indicateur de suivi",
              f"Le solde annuel des prairies déclarées, en hectares : "
-             f"{ha(niveau.loc[an] - niveau.loc[an - 1], signe=True)} entre {an - 1} et {an}.")
+             f"{ha(niveau.loc[an] - niveau.loc[an_prec], signe=True)} entre {an_prec} et {an}.")
     st.caption(f"Ratio officiel : {OFFICIEL['source']}. Année de référence de l'objectif : {a_ref} "
                "(réglage du moteur, prairimetre/config.py).")
 
@@ -224,7 +226,8 @@ def payer():
         somme = ["retourne_recent", "retourne_recent_enjeux", f"pp_{r0}"]
         u = perimetre.groupby("epci").agg({**{c: "sum" for c in somme}, "epci_nom": "first"})
         u = u.rename(columns={"epci_nom": "nom"})
-        u["retournement_recent_taux_annuel"] = u.retourne_recent / u[f"pp_{r0}"] / RECENT
+        delta_r = max(an - r0, 1)
+        u["retournement_recent_taux_annuel"] = u.retourne_recent / u[f"pp_{r0}"] / delta_r
     else:
         u = perimetre.rename(columns={"nom_officiel": "nom"})
     if en_pct:
