@@ -29,39 +29,115 @@ OFFICIEL = {"perte_ha": -59703, "perte_pct": -8.9, "ratio_evol_pct": -1.97,
 SEUIL_RATIO_PCT = 5
 
 LEXIQUE = {
-    "Aire d'alimentation de captage": "surface sur laquelle l'eau de pluie s'infiltre avant de "
-                                      "rejoindre un captage d'eau potable.",
-    "BCAE": "les « bonnes conditions agricoles et environnementales » imposées par la PAC. La BCAE 9 "
-            "interdit de retourner les prairies sensibles ; la BCAE 2 protège les zones humides "
-            "et les tourbières.",
-    "Brut, net": "brut : toutes les prairies retournées ou sorties de la déclaration ; net : après "
-                 "déduction, dans la même commune, des prairies apparues sur d'anciennes cultures "
-                 "ou terres non déclarées. L'outil classe les communes sur le net.",
-    "Intercommunalité (EPCI)": "communauté de communes, d'agglomération ou urbaine.",
-    "MAEC, paiements pour services environnementaux": "aides versées à un agriculteur qui "
-                                                       "s'engage à garder ses prairies.",
-    "Natura 2000, ZNIEFF": "Natura 2000 désigne des sites européens protégés ; une ZNIEFF est un "
-                           "inventaire des milieux naturels remarquables, sans effet juridique sur "
-                           "le labour.",
-    "OCS GE, LUCAS, statistique agricole annuelle": "trois sources indépendantes du registre "
-                                                     "parcellaire, utilisées pour vérifier ses "
-                                                     "chiffres : la carte d'occupation du sol de "
-                                                     "l'IGN, l'enquête de terrain européenne et "
-                                                     "l'enquête annuelle du ministère de "
-                                                     "l'Agriculture.",
-    "Prairie permanente déclarée": "surface en herbe depuis au moins cinq ans, déclarée par un "
-                                   "agriculteur à la PAC. L'outil ne voit que les prairies "
-                                   "déclarées.",
-    "Ratio de prairies permanentes": "part des prairies permanentes dans la surface agricole, "
-                                     "suivie par l'État pour la PAC. S'il baisse de plus de 5 %, "
-                                     "les retournements sont soumis à autorisation.",
-    "Registre parcellaire graphique (RPG)": "carte des parcelles déclarées à la PAC, publiée "
-                                            "chaque année par l'IGN, sans nom d'exploitant.",
-    "Retournement": "prairie labourée puis déclarée en culture (maïs, blé…). La perte est certaine, "
-                    "puisque la culture est déclarée.",
-    "Sortie de la déclaration": "prairie qui n'apparaît plus dans le registre parcellaire. L'herbe "
-                                "peut être encore là (changement d'exploitant, chevaux, terrain "
-                                "sans aide PAC) : la perte n'est pas certaine.",
+    "Aire d'alimentation de captage (AAC)": "surface sur laquelle l'eau de pluie s'infiltre avant de "
+                                            "rejoindre un captage d'eau potable. Les prairies permanentes "
+                                            "y filtrent naturellement les nitrates et les pesticides sans intrants.",
+    "Angle mort déclaratif (zones noires)": "communes ou parcelles absentes du registre PAC (haras équins, "
+                                            "petits élevages hors PAC, marais communaux, retraites sans repreneur "
+                                            "déclarant). La télédétection satellitaire permet de vérifier si "
+                                            "le couvert herbagé y est toujours présent.",
+    "Artificialisation (ENAF)": "transformation durable d'un sol agricole ou naturel par du bâti, de la "
+                                "voirie ou une zone d'activité (suivie par le Cerema). Elle explique "
+                                "moins de 2 % des sorties de la déclaration PAC en Normandie.",
+    "BCAE (Bonnes conditions agricoles et environnementales)": "règles environnementales conditionnant les "
+                                                               "aides de la PAC. La BCAE 1 encadre le ratio "
+                                                               "régional de prairies permanentes ; la BCAE 2 "
+                                                               "protège les zones humides et les tourbières ; "
+                                                               "la BCAE 9 interdit de labourer les prairies "
+                                                               "sensibles (notamment en site Natura 2000).",
+    "Brut, net (flux et solde)": "brut : toutes les prairies retournées ou sorties de la déclaration ; "
+                                 "net (ou solde) : après déduction, dans la même commune, des prairies "
+                                 "apparues sur d'anciennes cultures ou terres non déclarées. L'outil "
+                                 "classe les communes sur le net.",
+    "Croisement géométrique (Lambert-93)": "méthode du moteur qui superpose les contours exacts des parcelles "
+                                           "d'une année à l'autre (projection métrique EPSG:2154) plutôt que "
+                                           "leurs numéros d'îlots ou de parcelles, qui changent à chaque "
+                                           "redécoupage ou changement d'exploitant.",
+    "Habitats prairiaux d'intérêt européen": "prairies naturelles à haute valeur écologique répertoriées par "
+                                             "la directive européenne Habitats-Faune-Flore (codes Natura 2000 : "
+                                             "6210 pelouses calcicoles, 6410 prairies à Molinie, 6510 prairies "
+                                             "maigres de fauche…), cartographiées dans les sites Natura 2000 "
+                                             "du Calvados, de la Manche et de l'Orne.",
+    "Intercommunalité (EPCI)": "établissement public de coopération intercommunale (communauté de communes, "
+                               "d'agglomération ou urbaine), échelle d'animation foncière et des plans "
+                               "climat-air-énergie territoriaux (PCAET).",
+    "MAEC, paiements pour services environnementaux (PSE)": "aides financières pluriannuelles versées à un "
+                                                            "agriculteur qui s'engage contractuellement à "
+                                                            "maintenir ses prairies permanentes et à limiter "
+                                                            "les intrants (financées par la PAC, la Région ou "
+                                                            "les Agences de l'eau).",
+    "Natura 2000, sites protégés, ZNIEFF (familles de zonages)": "l'outil distingue trois familles : "
+                                                                 "1) les règles qui encadrent directement le labour "
+                                                                 "(BCAE 9, BCAE 2, zones humides du programme nitrates) ; "
+                                                                 "2) les sites protégés (Natura 2000, réserves naturelles, "
+                                                                 "arrêtés de biotope, Conservatoire d'espaces naturels) ; "
+                                                                 "3) les inventaires scientifiques ou d'urbanisme "
+                                                                 "(ZNIEFF de type 1, zones humides DREAL, zones N des PLU), "
+                                                                 "qui signalent un enjeu écologique sans interdire "
+                                                                 "juridiquement le labour.",
+    "OCS GE, LUCAS, statistique agricole annuelle (SAA)": "trois sources indépendantes du registre parcellaire "
+                                                          "utilisées pour recouper ses chiffres : la carte "
+                                                          "d'Occupation du sol à grande échelle de l'IGN "
+                                                          "(qui regroupe toutefois prairies et cultures dans la "
+                                                          "même classe d'usage agricole), l'enquête européenne "
+                                                          "au sol LUCAS (points visités sur le terrain) et "
+                                                          "l'enquête annuelle Agreste du ministère de l'Agriculture.",
+    "PAR 7 (Programme d'actions régional Nitrates)": "réglementation régionale applicable en zone vulnérable "
+                                                     "aux nitrates, interdisant notamment le retournement des "
+                                                     "prairies permanentes dans certaines zones humides.",
+    "Phénologie (profil temporel de végétation)": "évolution saisonnière de l'activité végétale d'une parcelle "
+                                                  "sur 12 mois. Une prairie permanente garde un couvert vert "
+                                                  "actif toute l'année (faible amplitude saisonnière), tandis "
+                                                  "qu'une culture annuelle (maïs, blé) présente une chute "
+                                                  "brutale à l'état de sol nu lors du labour suivie d'un pic "
+                                                  "végétatif rapide.",
+    "Prairie permanente déclarée (PPH / PRL, groupe 18)": "surface en herbe depuis au moins cinq ans consécutifs, "
+                                                          "déclarée à la PAC dans le groupe de cultures 18 du RPG "
+                                                          "(prairies permanentes PPH et, jusqu'en 2022, prairies "
+                                                          " en rotation longue PRL).",
+    "Prairie temporaire": "surface en herbe semée sur une terre arable pour moins de cinq ans et intégrée "
+                          "dans la rotation des cultures. Le passage d'une prairie permanente en prairie "
+                          "temporaire traduit un retournement ou une remise en rotation.",
+    "Ratio de prairies permanentes (PAC)": "part des prairies permanentes dans la surface agricole utile (SAU) "
+                                           "régionale, suivie par l'État au titre de la BCAE 1. S'il recule de "
+                                           "plus de 5 % par rapport à la référence, les retournements sont "
+                                           "soumis à autorisation ou interdiction ; mais lorsque la SAU baisse "
+                                           "aussi, ce ratio évolue peu (-1,97 %) malgré de fortes pertes en hectares.",
+    "Registre parcellaire graphique (RPG)": "carte annuelle des parcelles agricoles déclarées à la PAC, "
+                                            "publiée en open data par l'IGN de manière anonyme (sans nom "
+                                            "d'exploitant).",
+    "Retournement": "prairie permanente labourée puis déclarée en culture annuelle (maïs, blé, colza, lin…). "
+                    "La perte est certaine, puisque la culture de remplacement est déclarée.",
+    "SAU (Surface agricole utile)": "ensemble des terres arables, des cultures permanentes et des prairies "
+                                    "permanentes déclarées sur un territoire.",
+    "Score NDVI (Normalized Difference Vegetation Index)": "indice biophysique mesurant la densité et la vigueur "
+                                                           "de la végétation verte par satellite à partir des "
+                                                           "bandes du proche infrarouge (NIR, réfléchie par le "
+                                                           "feuillage) et du rouge (Red, absorbée par la "
+                                                           "chlorophylle) : NDVI = (NIR − Red) / (NIR + Red), "
+                                                           "compris entre −1 et +1. En Normandie, un sol nu ou "
+                                                           "labouré a un NDVI < 0,25 ; une prairie permanente "
+                                                           "maintient un NDVI ≥ 0,40 en hiver et ≥ 0,58 au "
+                                                           "printemps, avec une faible amplitude annuelle (≤ 0,28).",
+    "Seuil de représentativité (20 ha)": "surface minimale de prairies déclarées en début de période (2018) "
+                                         "en-dessous de laquelle l'outil ne calcule pas de classement en "
+                                         "pourcentage pour la commune, afin d'éviter que le labour d'une seule "
+                                         "petite parcelle en ville ne produise un taux extrême trompeur.",
+    "Sortie de la déclaration": "prairie qui disparaît du registre parcellaire PAC sans qu'aucune culture ne "
+                                "soit déclarée à sa place. L'herbe est le plus souvent encore là (81,6 % selon "
+                                "l'audit satellitaire Sentinel-2 : chevaux, petits élevages ou parcelles sans "
+                                "aide PAC) : la perte n'est pas certaine et doit être vérifiée.",
+    "Télédétection satellitaire (Sentinel-2, Theia OSO, Copernicus)": "observation optique de la Terre à 10 m "
+                                                                      "de résolution tous les 5 jours par les "
+                                                                      "satellites européens Sentinel-2, croisée "
+                                                                      "avec la carte d'occupation des sols "
+                                                                      "Theia OSO (CESBIO/CNES, classes herbacées "
+                                                                      "221/222) et Copernicus HRL Grassland. "
+                                                                      "Elle permet de lever l'angle mort des "
+                                                                      "parcelles sorties de la déclaration PAC.",
+    "Zéro perte nette (objectif 2030)": "objectif régional visant à maintenir ou restaurer d'ici 2030 une "
+                                        "surface totale de prairies permanentes en Normandie au moins égale "
+                                        "à celle de l'année de référence (2022).",
 }
 
 DEPARTEMENTS = {"14": "Calvados", "27": "Eure", "50": "Manche", "61": "Orne",
