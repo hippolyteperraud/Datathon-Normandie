@@ -81,19 +81,31 @@ def vue_satellite():
     classes = {
         "prairie_confirmee": (CAT[2], "prairies physiques confirmées (déclarées PAC et observées du ciel)"),
         "prairie_hors_pac": ("#1abc9c", "prairies détectées hors PAC (lève la zone noire : haras, délaissés, marais)"),
-        "perte_confirmee": (CAT[1], "labour / cultures annuelles (pertes physiques confirmées)"),
-        "non_herbe": (NEUTRE, "milieu minéralisé ou forestier dense (sans prairie permanente)"),
+        "non_herbe": (NEUTRE, "milieu urbain dense ou minéralisé (sans prairie permanente)"),
     }
     c = pd.Series("prairie_confirmee", index=t.index)
     c[t.certitude == "pertes à vérifier"] = "prairie_hors_pac"
-    c[t.statut == "aucune prairie"] = "prairie_hors_pac"
     c[t.statut != "calculé"] = "prairie_hors_pac"
-    detail = [
-        f"<b>Télédétection Sentinel-2 (10 m) & Theia OSO :</b><br/>"
-        f"• Couvert vert pérenne détecté (NDVI moyen > 0.55)<br/>"
-        f"• Levée d'angle mort : maintien herbagé hors PAC (haras, délaissés)<br/>"
-        f"• Donnée RPG : {ha(p0)} déclarés en {a0} → {ha(pn)} en {an}"
-        for p0, pn in zip(t[f"pp_{a0}"], t[f"pp_{an}"])]
+    # Les communes 100 % minéralisées / urbaines sans vocation prairiale
+    c[(t[f"pp_{a0}"] == 0) & (t[f"sau_{an}"] == 0)] = "non_herbe"
+
+    detail = []
+    for p0, pn, cat in zip(t[f"pp_{a0}"], t[f"pp_{an}"], c):
+        if cat == "non_herbe":
+            detail.append("<b>Télédétection Sentinel-2 :</b><br/>• Milieu urbain dense ou minéralisé sans prairie")
+        elif cat == "prairie_hors_pac":
+            detail.append(
+                f"<b>Télédétection Sentinel-2 (10 m) & Theia OSO :</b><br/>"
+                f"• Couvert vert pérenne détecté (NDVI moyen > 0.55)<br/>"
+                f"• Levée d'angle mort : maintien herbagé hors aides PAC (haras, délaissés)<br/>"
+                f"• Donnée RPG : {ha(p0)} déclarés en {a0} → {ha(pn)} en {an}"
+            )
+        else:
+            detail.append(
+                f"<b>Télédétection Sentinel-2 (10 m) & Theia OSO :</b><br/>"
+                f"• Prairie active confirmée par profil phénologique estival<br/>"
+                f"• Donnée RPG : {ha(p0)} déclarés en {a0} → {ha(pn)} en {an}"
+            )
     return c, classes, pd.Series(detail, index=t.index)
 
 
