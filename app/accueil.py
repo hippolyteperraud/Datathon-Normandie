@@ -25,10 +25,7 @@ page = st.navigation([
     st.Page("vues/commune.py", title="Ma commune", icon=":material/location_city:"),
     st.Page("vues/donnees.py", title="Carte des données", icon=":material/map:"),
     st.Page("vues/methode.py", title="Données et méthode", icon=":material/fact_check:"),
-    st.Page("vues/lexique.py", title="Lexique", icon=":material/menu_book:"),
-])
-with st.sidebar:
-    st.toggle("Fond de carte (internet)", value=True, key="fond_carte",
-              help="Sans connexion, désactivez-le : les cartes restent lisibles, sans fond.")
+    st.Page("vues/lexique.py", title="Lexique et définitions", icon=":material/menu_book:"),
+], position="top")  # le menu est un bandeau en haut de la page, toujours visible
 page.run()
 signature()
