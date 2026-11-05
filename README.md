@@ -90,9 +90,9 @@ python -m streamlit run app/accueil.py   # puis ouvrir http://localhost:8501
 |---|---|---|
 | Où agir (accueil) | Trois moyens d'agir : 1. suivre l'objectif 2030 en hectares, 2. payer le maintien des prairies là où l'on retourne (communes, intercommunalités ou aires de captage, avec leurs interlocuteurs), 3. s'appuyer sur les communes qui gardent leurs prairies. Pour chacun : le conseil, pourquoi, pour qui, où, l'indicateur de suivi | Région, chambre d'agriculture, DDT(M), PNR, syndicats d'eau, Agences de l'eau |
 | Ma commune | Combien d'hectares la commune a perdus, en tout et zone par zone (zones humides, sites protégés, captages…) ? « Ne sait pas » si la source ne dit rien | Élus, EPCI, habitants |
-| Carte des données | Quelles données on a où (registre PAC, occupation du sol, enquête au sol LUCAS, habitats Natura 2000 ; en noir, là où une source ne dit rien), et où il en faudrait plus : l'état réel des prairies sorties de la déclaration (communes où la réponse change la décision de payer le maintien), les habitats prairiaux des départements sans cartographie | Région, DDT(M), jury, experts |
+| Carte des données | Où il en faudrait plus : l'état réel des prairies sorties de la déclaration (communes où la réponse change la décision de payer le maintien), les habitats prairiaux des départements sans cartographie | Région, DDT(M), jury, experts |
 | Données et méthode | Preuves (avec les tests qui les vérifient), sources, moteur (nouveau registre) | Jury, experts, équipe |
-| Lexique et définitions | Les mots de l'outil, et les quatre chiffres qui circulent sur les prairies | Tous |
+| Technique | Les données qu'on a : une petite carte par source (registre PAC, occupation du sol, enquête au sol LUCAS, habitats Natura 2000), en noir là où une source ne dit rien ; trois chiffres ; les mots de l'outil | Jury, experts, équipe |
 
 Menu : un bandeau en haut de la page, toujours visible. Le fond de carte demande une connexion
 internet.

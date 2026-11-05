@@ -1,8 +1,10 @@
 # Prairimètre — plan de refonte de l'app et intégration du détecteur satellite
 
 Établi le 4 novembre 2026, à partir du code de la branche `test-app-v1` (app Streamlit, moteur, `sorties/`).
-Mis à jour le 5 novembre : la page « Ma commune » est terminée et **n'est plus modifiée** ; le menu est déjà un
-bandeau en haut ; le fond de carte est toujours affiché (l'interrupteur est supprimé).
+Mis à jour le 5 novembre (3 fois) : la page « Ma commune » est terminée et **n'est plus modifiée** ; le menu est déjà un
+bandeau en haut ; le fond de carte est toujours affiché (l'interrupteur est supprimé). Menu cible : **Normandie ·
+Ma commune · Technique** ; le Lexique est supprimé, et la vérification des parcelles vit dans le mode
+« Où mesurer » de la page Normandie (sections 3.5 et 3.6).
 Le code du détecteur satellite n'est pas dans le dépôt : tout ce qui le concerne ci-dessous repose sur un
 contrat d'interface à valider avec Mouhssine (section 2).
 
@@ -116,7 +118,7 @@ Ce sont des **tris simples**, pas de l'optimisation : cela reste dans le périm�
 
 ### 3.1 Principe
 
-**Une page « La carte », une seule carte.** Les boutons changent ce que la carte colore ; ils ne changent pas
+**Une page « Normandie », une seule carte.** Les boutons changent ce que la carte colore ; ils ne changent pas
 de page. Un clic sur une commune affiche à côté de la carte une mini-fiche (nom, 3 chiffres) avec un lien vers
 la page « Ma commune », qui reste la fiche complète et n'est pas modifiée.
 
@@ -124,7 +126,7 @@ la page « Ma commune », qui reste la fiche complète et n'est pas modifiée.
 ┌──────────────────────────────────────────────────────────────────────────┐
 │ 🌿 Prairimètre            Depuis 2018 : 55 000 ha retournés · 55 000 ha à vérifier  │
 ├──────────────────────────────────────────────────────────────────────────┤
-│  [ Ce qu'on a perdu ] [ Ce qu'on ne sait pas ] [ Où chercher ] [ Les bons exemples ] │
+│  [ Ce qu'on a perdu ] [ Ce qu'on ne sait pas ] [ Où mesurer ] [ Les bons exemples ] │
 ├──────────────────────────────────────────────┬───────────────────────────┤
 │                                              │  Phrase du mode, 1 ligne  │
 │                                              │  « Quoi faire »           │
@@ -139,7 +141,7 @@ la page « Ma commune », qui reste la fiche complète et n'est pas modifiée.
 │                                              │  [ Voir Ma commune → ]    │
 │                                              │  [⬇ Télécharger la liste] │
 └──────────────────────────────────────────────┴───────────────────────────┘
-        Menu en haut : La carte · Ma commune (inchangée) · Comprendre (fiabilité du détecteur, méthode, sources, lexique)
+        Menu en haut : Normandie · Ma commune (inchangée) · Technique
 ```
 
 ### 3.2 Les quatre boutons
@@ -148,7 +150,7 @@ la page « Ma commune », qui reste la fiche complète et n'est pas modifiée.
 |---|---|---|
 | **Ce qu'on a perdu** | Hectares retournés en culture par commune (du jaune pâle au rouge). Un bouton « en hectares / en % » | Où agir, moyen 2 « Payer le maintien » (listes, 3 critères, 3 échelles) |
 | **Ce qu'on ne sait pas** | Pour chaque commune, l'état du sort des prairies sorties : vert « encore de l'herbe », rouge « perdue », orange « on ne sait toujours pas » (avec le détecteur) | Où agir, moyen 1 (partie « sorties ») + Carte des données, besoin 1 |
-| **Où chercher** | Priorité de collecte : les communes où des hectares incertains pèsent le plus. Liste exportable des parcelles à vérifier | Carte des données, besoins 1 et 2 + les 4 petites cartes de sources |
+| **Où mesurer** | Priorité de mesure : les communes où le plus d'hectares sont sortis de la déclaration (puis, avec le détecteur, où le plus d'hectares restent incertains). C'est ici que sert l'outil par images satellite (3.6) | Carte des données, besoins 1 et 2 + les 4 petites cartes de sources |
 | **Les bons exemples** | Communes qui n'ont pas perdu de prairies depuis 2018 (vert) | Où agir, moyen 3 |
 
 Le graphique de l'objectif 2030 (courbe d'hectares, niveau à retrouver) passe dans l'en-tête, en petit : c'est
@@ -165,7 +167,7 @@ le moyen 1 « Suivre l'objectif », qui n'est pas une carte mais un compteur.
    l'herbe. » Remplace les 5 rubriques (Conseil / Pourquoi / Pour qui / Où / Indicateur).
 4. **Vocabulaire identique à « Ma commune »** : « retournée en culture », « sortie de la déclaration »,
    « toujours en prairie ». Ne pas inventer d'autres mots d'une page à l'autre. « mécanisme », « zonage d'enjeux »,
-   « brut/net » : sortis de la page principale, définis dans « Comprendre ».
+   « brut/net » : sortis de la page principale, les mots difficiles restent en info-bulle là où ils apparaissent (pas de page Lexique).
 5. **Jamais de case vide** : règle déjà en place dans `commun.py`, à conserver.
 6. **Les options dans un seul endroit** (panneau de droite ou `st.popover`), quatre au maximum : territoire,
    niveau, fond de carte, nombre de communes dans la liste.
@@ -174,16 +176,56 @@ le moyen 1 « Suivre l'objectif », qui n'est pas une carte mais un compteur.
 
 Un bouton Plan / Photo sur la carte. La photo aérienne de l'IGN (licence ouverte) permet de voir pourquoi une
 parcelle est « incertaine » et rend la fiche commune bien plus parlante. À tester d'abord : dépend de l'accès réseau
-et du service de tuiles de l'IGN. L'ancien interrupteur « Fond de carte » est supprimé : le fond « plan » est
+et du service de tuiles de l'IGN. Elle sert dans le mode « Où mesurer » pour regarder les parcelles d'une commune. L'ancien interrupteur « Fond de carte » est supprimé : le fond « plan » est
 toujours affiché (sans internet, les cartes restent vides) ; le bouton Plan / Photo ne concerne que la nouvelle carte.
 
 ### 3.5 Trois pages au lieu de cinq, dans le bandeau du haut
 
-| Page | Contenu |
+| Page | Rôle en une phrase | Contenu |
+|---|---|---|
+| **Normandie** (accueil) | « Où est-ce que ça disparaît, et où faut-il mesurer ? » | les quatre boutons (perdu / on ne sait pas / où mesurer / bons exemples), la mini-fiche, l'export |
+| **Ma commune** | « Et chez moi ? » | **Inchangée** (décision du 5 novembre) |
+| **Technique** | « Peut-on se fier à ces chiffres ? » | 4 mini-onglets : **Les preuves**, **D'où viennent les données**, **Les chiffres officiels**, **Recalculer** (voir 3.7) |
+
+Noms choisis pour se lire sans explication : un lieu (Normandie, Ma commune), puis un mot d'ingénieur isolé dans
+un seul bouton (Technique). « Où agir », « Carte des données », « Données et méthode » et « Lexique et
+définitions » disparaissent. Il n'y a pas de page dédiée à la vérification d'une parcelle isolée : la cible, ce
+sont les lieux où il y a eu le plus de sorties de la déclaration (décision du 5 novembre).
+
+### 3.6 Le mode « Où mesurer » (là où sert le détecteur satellite)
+
+Question posée à l'écran : **« Où faut-il aller mesurer pour savoir ce que sont devenues les prairies sorties de
+la déclaration ? »**
+
+1. **La carte** colore les communes selon les hectares sortis de la déclaration depuis 2018 (du jaune pâle au
+   orange foncé). Un curseur « Top N » (10, 50, 100 communes) met en avant les plus touchées : 237 communes
+   sur 2 377 portent la moitié des sorties.
+2. **Au clic sur une commune** : le nombre d'hectares et de parcelles sortis, et ce que dit le détecteur
+   (barre à trois états : encore de l'herbe / perdue / on ne sait toujours pas, quand il sera branché).
+3. **Les parcelles à mesurer** : la liste des plus grandes parcelles sorties de la commune, vues sur photo
+   aérienne, avec un export CSV (id RPG 2018 + coordonnées, même format que `docs/verification_parcelles.md`).
+4. **Le chiffre qui suit le progrès** : « part des hectares sortis dont on connaît le sort avec confiance »
+   (le taux de connaissance de 2.4), en haut de la page.
+5. **Avant le détecteur** : le mode fonctionne déjà avec le seul classement par hectares sortis ; le détecteur
+   ajoute la barre à trois états et remplace le tri par « hectares incertains ».
+
+Le contrôle à la main (30 parcelles, puis environ 100) se fait **hors de l'app**, dans un fichier par personne
+(`verifications/hippolyte.csv`, `verifications/mouhssine.csv`), à partir du document de vérification. Son résultat
+et celui du benchmark s'affichent dans Technique → Les preuves.
+
+Limite à écrire sur la page : une photo aérienne n'a pas toujours été prise en 2025 ; une image trop ancienne ne
+permet pas de conclure.
+
+### 3.7 La page « Technique »
+
+Un seul bouton dans le menu, quatre mini-onglets, rien d'autre :
+
+| Mini-onglet | Reprend |
 |---|---|
-| **La carte** (accueil) | les quatre boutons, la mini-fiche, l'export |
-| **Ma commune** | **Inchangée** (décision du 5 novembre) |
-| **Comprendre** | Fiabilité du détecteur (benchmark, courbe précision/couverture) · les preuves actuelles · sources · lexique · moteur (nouveau registre). En sections repliables, pas en 3 onglets |
+| **Les preuves** | les 4 questions de l'onglet Preuves actuel (le compteur est-il fiable, les règles, la concentration, la reproductibilité) + « ce que l'outil ne sait pas » ; plus tard, la fiabilité du détecteur (benchmark, courbe précision/couverture) et le résultat du contrôle à la main |
+| **D'où viennent les données** | l'onglet Sources actuel (liste, producteur, date de mise à jour) |
+| **Les chiffres officiels** | le tableau « quatre chiffres, quatre définitions » du Lexique actuel (Prairimètre, chiffre officiel, ratio, statistique agricole) et sa note sur PPH et PRL. C'est la seule partie du Lexique qui répond à une vraie question (« pourquoi vos chiffres diffèrent des officiels ? ») |
+| **Recalculer** | l'onglet Moteur actuel (nouveau registre, recalcul d'une année), inchangé |
 
 ---
 
@@ -193,12 +235,13 @@ toujours affiché (sans internet, les cartes restent vides) ; le bouton Plan / P
 |---|---|
 | `prairimetre/` (moteur), `sorties/`, tests | **Gardés tels quels.** On ajoute `detecteur.py` + 1 table |
 | `commun.py` : `deck`, `communes_carte`, `epci_carte`, formats, `nombre/ha/pct` | **Gardés.** On y ajoute une fonction `carte_data(mode, niveau, dep)` qui renvoie la table à colorer |
-| `vues/prairies.py` (Où agir) | **Refait** : devient la page « La carte ». Les 3 fonctions `suivre/payer/exemple` deviennent 3 des 4 modes |
-| `vues/donnees.py` (Carte des données) | **Refait** : les 4 petites cartes disparaissent ; les 2 grandes cartes deviennent le mode « Où chercher ». Les 8 compteurs deviennent 3 |
+| `vues/prairies.py` (Où agir) | **Refait** : devient la page « Normandie ». Les 3 fonctions `suivre/payer/exemple` deviennent 3 des 4 modes |
+| `vues/donnees.py` (Carte des données) | **Refait** : les 4 petites cartes disparaissent ; les 2 grandes cartes deviennent le mode « Où mesurer » (3.6). Les 8 compteurs deviennent 3 |
 | `vues/commune.py` (Ma commune) | **Gardée telle quelle.** Aucune modification, y compris quand le détecteur arrivera (toute évolution se décide à part) |
-| `vues/methode.py` + `lexique.py` | **Fusionnés** en page « Comprendre » |
+| `vues/methode.py` | **Devient la page « Technique »** (4 mini-onglets, contenu repris tel quel) |
+| `vues/lexique.py` | **Supprimée (fait le 5 novembre).** Dans Technique : trois chiffres et les mots, une ligne par mot |
 | Fiche captage (`fiche_captage`) | **Option** « Eau potable » du mode « Ce qu'on a perdu » (filtre), plus une échelle à part |
-| Habitats prairiaux (besoin 2) | **Déplacé** dans « Comprendre » (limites). Ne répond pas à la question centrale |
+| Habitats prairiaux (besoin 2) | **Déplacé** dans « Technique » → Les preuves (limites). Ne répond pas à la question centrale |
 | Bandeau SVG, `signature()` | Bandeau **réduit** à une ligne de titre ; signature gardée |
 | Menu latéral, interrupteur « Fond de carte » | **Déjà fait** : menu en bandeau en haut, fond toujours affiché |
 
@@ -211,17 +254,18 @@ Tailles : S < ½ jour, M ≈ 1 jour, L ≈ 2 jours. Date limite de remise non co
 | # | Tâche | Taille | Dépend de |
 |---|---|---|---|
 | 1 | Valider le contrat d'interface du détecteur avec Mouhssine (format, date d'image, précision actuelle) | S | — |
-| 2 | Nouvelle page « La carte » avec modes 1, 2 (sans détecteur : « on ne sait pas » en orange) et 4 | M–L | — |
+| 2 | Nouvelle page « Normandie » avec modes 1, 2 (sans détecteur : « on ne sait pas » en orange) et 4 | M–L | — |
 | 3 | Mini-fiche au clic sur la carte + lien vers Ma commune | S | 2 |
-| 4 | Page « Comprendre » (fusion méthode + lexique + sources + moteur) | S | — |
+| 4 | Menu renommé (Normandie · Ma commune · Technique), Lexique supprimé, page « Technique » à 4 mini-onglets | S | — |
 | 5 | Benchmark niveaux A et B + courbe précision/couverture | M | 1 |
-| 6 | Intégration du détecteur dans le mode 2 (3 états) et dans le compteur d'en-tête | M | 1, 2 |
-| 7 | Mode « Où chercher » + export des parcelles à vérifier | M | 6 |
-| 8 | Annotation manuelle des 30 parcelles, puis ≈ 70 de plus (benchmark niveau C) | L | — (à faire en parallèle) |
-| 9 | Bouton fond « photo aérienne » | S | 2 |
+| 6 | Intégration du détecteur dans les modes « Ce qu'on ne sait pas » et « Où mesurer » (3 états) et dans le compteur d'en-tête | M | 1, 2, 7 |
+| 7 | Mode « Où mesurer » : classement des communes par hectares sortis, liste des parcelles à mesurer sur photo aérienne, export CSV (version sans détecteur) | M | 2, 9 |
+| 8 | Contrôle à la main hors de l'app : les 30 parcelles puis ≈ 70 de plus, un fichier par personne (benchmark niveau C) | L | — (à faire en parallèle) |
+| 9 | Fond « photo aérienne » dans `deck()` (sert au mode « Où mesurer ») | S | — |
 | 10 | Vérification : parcourir l'app avec quelqu'un qui ne connaît pas le projet, noter où il hésite | S | 2–7 |
 
-Les tâches 2, 4 et 8 peuvent démarrer tout de suite, sans attendre le détecteur.
+Les tâches 2, 4, 7, 8 et 9 peuvent démarrer tout de suite, sans attendre le détecteur. Ordre conseillé : 4 (rapide),
+puis 9, 2 et 7 (la page Normandie avec le mode « Où mesurer »), pendant que 8 avance en parallèle.
 
 ---
 

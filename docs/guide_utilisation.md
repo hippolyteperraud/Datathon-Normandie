@@ -44,15 +44,15 @@ Le fond de carte demande une connexion internet.
 
 ## 4. Utiliser l'application
 
-Le menu, en bandeau en haut de la page, donne accès aux cinq pages, dont le **Lexique et définitions**.
+Le menu, en bandeau en haut de la page, donne accès aux cinq pages. Les mots de l'outil sont dans **Technique**.
 
 | Page | À quoi elle sert |
 |---|---|
 | Où agir (accueil) | Les trois moyens d'agir : suivre l'objectif 2030 en hectares, payer le maintien des prairies là où l'on retourne, s'appuyer sur les communes qui gardent leurs prairies. Pour chacun : le conseil, pourquoi, pour qui, où (carte et liste à télécharger), l'indicateur de suivi |
 | Ma commune | Les hectares d'une commune : prairies de 2025, retournées, sorties de la déclaration, ajoutées ; ce que sont devenues les prairies de 2018, en tout et zone par zone (zones humides, sites protégés, prairies sensibles, ZNIEFF, captages, habitats ; « ne sait pas » si la source ne dit rien) ; une seule carte de ses prairies |
-| Carte des données | Les données qu'on a : une petite carte par source (registre PAC, occupation du sol, enquête au sol, habitats), en noir là où elle ne dit rien. Où il en faudrait plus : chaque donnée à collecter, ses chiffres et ses communes (l'état réel des prairies sorties de la déclaration ; les habitats prairiaux des départements sans cartographie). Télécharger le tableau |
+| Carte des données | Où il en faudrait plus : chaque donnée à collecter, ses chiffres et ses communes (l'état réel des prairies sorties de la déclaration ; les habitats prairiaux des départements sans cartographie). Télécharger le tableau |
 | Données et méthode | La preuve de chaque moyen d'agir (avec les tests qui la vérifient), les sources, le moteur (nouveau registre ; recalcul proposé seulement si les résultats ne sont pas à jour) |
-| Lexique et définitions | Les mots de l'outil, et les quatre chiffres qui circulent sur les prairies |
+| Technique | Les données qu'on a : une petite carte par source (registre PAC, occupation du sol, enquête au sol, habitats), en noir là où elle ne dit rien ; trois chiffres ; les mots de l'outil |
 
 Lire les chiffres :
 

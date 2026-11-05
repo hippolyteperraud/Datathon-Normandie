@@ -54,9 +54,9 @@ machine : elle n'est pas accessible depuis le réseau.
 |---|---|
 | Où agir (accueil) | Les trois moyens d'agir, chacun avec son conseil, ses territoires et son indicateur de suivi |
 | Ma commune | Les hectares d'une commune, en tout et zone par zone, la carte de ses parcelles |
-| Carte des données | Quelles données on a où (en noir, là où une source ne dit rien), et où il en faudrait plus |
+| Carte des données | Où il en faudrait plus : l'état réel des prairies sorties de la déclaration, les habitats prairiaux des départements sans cartographie |
 | Données et méthode | Les preuves (et les tests qui les vérifient), les sources, et la mise à jour des données |
-| Lexique et définitions | Les mots de l'outil, et les quatre chiffres qui circulent sur les prairies |
+| Technique | Les données qu'on a : une petite carte par source (en noir, là où une source ne dit rien) ; trois chiffres ; les mots de l'outil |
 
 Le fond de carte demande une connexion internet.
 

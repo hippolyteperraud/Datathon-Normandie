@@ -106,7 +106,7 @@ def suivre():
              + (f", dont {pct(etat['agricole'], 0)} restent des terres agricoles selon la carte "
                 "d'occupation du sol de l'IGN, sans qu'on sache si c'est de l'herbe ou une "
                 "culture" if etat else "")
-             + " : à vérifier avant de les compter (page Carte des données).")
+             + " : à vérifier avant de les compter (page Où aller voir).")
     st.caption(f"Pour : {ACTIONS['suivre']['pour']}")
 
     d = obj.rename(columns={"annee": "année", "prairies_ha": "ha"})

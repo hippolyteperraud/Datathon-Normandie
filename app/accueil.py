@@ -23,9 +23,9 @@ st.logo(str(ICI / "assets" / "logo.svg"), size="large")
 page = st.navigation([
     st.Page("vues/prairies.py", title="Où agir", icon=":material/agriculture:", default=True),
     st.Page("vues/commune.py", title="Ma commune", icon=":material/location_city:"),
-    st.Page("vues/donnees.py", title="Carte des données", icon=":material/map:"),
+    st.Page("vues/donnees.py", title="Où aller voir", icon=":material/map:"),
     st.Page("vues/methode.py", title="Données et méthode", icon=":material/fact_check:"),
-    st.Page("vues/lexique.py", title="Lexique et définitions", icon=":material/menu_book:"),
+    st.Page("vues/technique.py", title="Technique", icon=":material/build:"),
 ], position="top")  # le menu est un bandeau en haut de la page, toujours visible
 page.run()
 signature()

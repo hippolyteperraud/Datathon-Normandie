@@ -27,7 +27,7 @@ Chiffres cités : registre parcellaire 2018 → 2025, résultats du 30 octobre 2
   parcellaire, groupe de cultures 18). Il trouve −60 050 ha entre 2018 et 2025, contre −59 703 ha
   pour le chiffre officiel. Si l'objectif vise toutes les prairies, déclarées ou non, le compteur
   en sous-estime le niveau. Il faudra alors le dire sur chaque page.
-- **Où modifier** : texte de l'en-tête de « Où agir » et page Lexique et définitions (`app/vues/`).
+- **Où modifier** : texte de l'en-tête de « Où agir » et page Technique (`app/vues/`).
 - **Réponse** :
 
 ### 3. Les zones humides du programme d'actions nitrates interdisent-elles le retournement ?
@@ -128,7 +128,7 @@ Chiffres cités : registre parcellaire 2018 → 2025, résultats du 30 octobre 2
 - **À qui** : DREAL, conservatoire botanique compétent.
 - **Ce qui en dépend** : la cartographie des habitats d'intérêt européen n'existe, dans nos
   données, que pour les sites Natura 2000 du Calvados, de la Manche et de l'Orne (251 communes).
-  Les deux autres départements sont en noir sur la Carte des données.
+  Les deux autres départements sont en noir dans Technique (Les données qu'on a).
 - **Où modifier** : `python -m prairimetre importer habitats_natura2000 <fichier>`.
 - **Réponse** :
 

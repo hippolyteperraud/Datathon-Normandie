@@ -255,7 +255,7 @@ with sources:
             "les chiffres.\n"
             "- La richesse écologique des prairies n'est cartographiée que dans les sites Natura "
             "2000 de l'ouest de la région.")
-        st.page_link("vues/donnees.py", label="Voir ces manques commune par commune",
+        st.page_link("vues/technique.py", label="Voir ces manques commune par commune",
                      icon=":material/map:")
 
     st.subheader("Les sources")

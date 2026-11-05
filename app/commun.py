@@ -28,42 +28,6 @@ OFFICIEL = {"perte_ha": -59703, "perte_pct": -8.9, "ratio_evol_pct": -1.97,
 # autorisation (règlement UE 2021/2115, BCAE 1)
 SEUIL_RATIO_PCT = 5
 
-LEXIQUE = {
-    "Aire d'alimentation de captage": "surface sur laquelle l'eau de pluie s'infiltre avant de "
-                                      "rejoindre un captage d'eau potable.",
-    "BCAE": "les « bonnes conditions agricoles et environnementales » imposées par la PAC. La BCAE 9 "
-            "interdit de retourner les prairies sensibles ; la BCAE 2 protège les zones humides "
-            "et les tourbières.",
-    "Brut, net": "brut : toutes les prairies retournées ou sorties de la déclaration ; net : après "
-                 "déduction, dans la même commune, des prairies apparues sur d'anciennes cultures "
-                 "ou terres non déclarées. L'outil classe les communes sur le net.",
-    "Intercommunalité (EPCI)": "communauté de communes, d'agglomération ou urbaine.",
-    "MAEC, paiements pour services environnementaux": "aides versées à un agriculteur qui "
-                                                       "s'engage à garder ses prairies.",
-    "Natura 2000, ZNIEFF": "Natura 2000 désigne des sites européens protégés ; une ZNIEFF est un "
-                           "inventaire des milieux naturels remarquables, sans effet juridique sur "
-                           "le labour.",
-    "OCS GE, LUCAS, statistique agricole annuelle": "trois sources indépendantes du registre "
-                                                     "parcellaire, utilisées pour vérifier ses "
-                                                     "chiffres : la carte d'occupation du sol de "
-                                                     "l'IGN, l'enquête de terrain européenne et "
-                                                     "l'enquête annuelle du ministère de "
-                                                     "l'Agriculture.",
-    "Prairie permanente déclarée": "surface en herbe depuis au moins cinq ans, déclarée par un "
-                                   "agriculteur à la PAC. L'outil ne voit que les prairies "
-                                   "déclarées.",
-    "Ratio de prairies permanentes": "part des prairies permanentes dans la surface agricole, "
-                                     "suivie par l'État pour la PAC. S'il baisse de plus de 5 %, "
-                                     "les retournements sont soumis à autorisation.",
-    "Registre parcellaire graphique (RPG)": "carte des parcelles déclarées à la PAC, publiée "
-                                            "chaque année par l'IGN, sans nom d'exploitant.",
-    "Retournement": "prairie labourée puis déclarée en culture (maïs, blé…). La perte est certaine, "
-                    "puisque la culture est déclarée.",
-    "Sortie de la déclaration": "prairie qui n'apparaît plus dans le registre parcellaire. L'herbe "
-                                "peut être encore là (changement d'exploitant, chevaux, terrain "
-                                "sans aide PAC) : la perte n'est pas certaine.",
-}
-
 DEPARTEMENTS = {"14": "Calvados", "27": "Eure", "50": "Manche", "61": "Orne",
                 "76": "Seine-Maritime"}
 # « les communes du Calvados », « de l'Eure »... (filtre Territoire des pages)
@@ -83,7 +47,7 @@ GRIS = "#6b6a65"     # pas de diagnostic : peu ou pas de prairies (villes, zones
 FLUX_COULEURS = {"culture": "#c2452d", "non déclaré": "#f0a202", "prairie temporaire": "#2a78d6",
                  "prairie permanente": "#2e7d4f", "autre": "#5b5a55", "ajoutée": "#8a4fc4"}
 
-# Les trois moyens d'agir (page Où agir) et la vérification (page Carte des données). Une
+# Les trois moyens d'agir (page Où agir) et la vérification (page Où aller voir). Une
 # commune relève de l'un d'eux selon le mécanisme dominant de ses pertes, calculé par le moteur.
 ACTIONS = {
     "suivre": {"titre": "Suivre l'objectif en hectares", "couleur": CAT[0],
