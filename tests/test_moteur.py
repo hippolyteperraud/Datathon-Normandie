@@ -11,6 +11,13 @@ from shapely.geometry import box
 
 from prairimetre.donnees import code5
 from prairimetre.evaluation import etat_ocsge
+from prairimetre.satellite import (
+    auditer_30_parcelles,
+    calculer_ndvi,
+    classifier_profil_ndvi,
+    diagnostic_zone_noire,
+    synthese_audit,
+)
 from prairimetre.suivi import categorie, croiser
 
 
@@ -72,6 +79,39 @@ class Ocsge(unittest.TestCase):
         us = pd.Series(["US1.1", "US5", "US2", "US1.1", "US6.3"])
         self.assertEqual(etat_ocsge(cs, us).tolist(), [
             "herbe, usage agricole", "herbe, autre usage", "artificialisé", "ligneux", "autre"])
+
+
+class Satellite(unittest.TestCase):
+    def test_calcul_ndvi(self):
+        self.assertAlmostEqual(calculer_ndvi(0.45, 0.05), 0.80)
+        self.assertEqual(calculer_ndvi(0.0, 0.0), 0.0)
+
+    def test_classification_profils_phenologiques(self):
+        # Prairie permanente : NDVI stable toute l'année (pas de sol nu, faible amplitude)
+        profil_prairie = [0.48, 0.50, 0.58, 0.66, 0.70, 0.65, 0.58, 0.55, 0.60, 0.56, 0.52, 0.49]
+        cat_p, conf_p = classifier_profil_ndvi(profil_prairie)
+        self.assertIn("maintien en herbe", cat_p)
+        self.assertGreaterEqual(conf_p, 0.85)
+
+        # Culture annuelle (labour + fort pic)
+        profil_culture = [0.18, 0.15, 0.22, 0.45, 0.78, 0.82, 0.60, 0.20, 0.16, 0.19, 0.21, 0.18]
+        cat_c, conf_c = classifier_profil_ndvi(profil_culture)
+        self.assertIn("culture annuelle", cat_c)
+        self.assertGreaterEqual(conf_c, 0.90)
+
+        # Surface bâtie / artificialisée
+        profil_bati = [0.12, 0.14, 0.15, 0.18, 0.20, 0.19, 0.17, 0.16, 0.15, 0.14, 0.13, 0.12]
+        cat_b, _ = classifier_profil_ndvi(profil_bati)
+        self.assertEqual(cat_b, "artificialisé")
+
+    def test_audit_et_diagnostic_zone_noire(self):
+        audit = auditer_30_parcelles()
+        self.assertEqual(len(audit), 30)
+        synth = synthese_audit(audit)
+        self.assertEqual(synth["nb_maintenues_herbe"], 24)
+        self.assertAlmostEqual(synth["part_herbe_surface_pct"], 81.6)
+        diag = diagnostic_zone_noire("14118", "Caen")
+        self.assertEqual(diag["classe_satellite"], "herbe_non_pac")
 
 
 if __name__ == "__main__":
