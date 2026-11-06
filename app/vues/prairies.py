@@ -18,8 +18,12 @@ from prairimetre.config import MIN_HA, RECENT
 
 exiger_sorties()
 a0, an = bornes()
-r0 = an - RECENT
 t, k, cc = table("communes"), table("captages"), table("communes_captages")
+A_communes = [int(c[3:]) for c in t.columns if c.startswith("pp_")]
+r0 = an - RECENT
+if r0 not in A_communes:
+    candidats = [a for a in A_communes if a <= r0]
+    r0 = candidats[-1] if candidats else a0
 bilan, obj = table("bilan_direct"), table("objectif")
 cl = evaluation("classes", index_col=0)
 calc = t[t.statut == "calculé"]
@@ -33,7 +37,8 @@ sorties = region[("disparues_devenues", "non déclaré")]
 ref = obj.iloc[0]
 a_ref, a_obj = int(ref.annee_reference), int(ref.annee_objectif)
 niveau = obj.set_index("annee").prairies_ha
-manque = ref.reference_ha - niveau.loc[an]          # > 0 : il manque des prairies
+ref_ha = ref.reference_ha if pd.notna(ref.reference_ha) else (niveau.loc[a_ref] if a_ref in niveau.index else niveau.iloc[0])
+manque = ref_ha - (niveau.loc[an] if an in niveau.index else niveau.iloc[-1])
 effort = manque / max(a_obj - an, 1)                # à regagner chaque année d'ici a_obj
 n_moitie = len(communes_moitie(t))
 exemples = calc[calc.mecanisme == ACTIONS["exemple"]["mecanisme"]]
@@ -117,15 +122,16 @@ def suivre():
         y=alt.Y("ha:Q", title="hectares de prairies déclarées", scale=alt.Scale(zero=False),
                 axis=alt.Axis(labelExpr=AXE_FR)),
         tooltip=[alt.Tooltip("année:O"), alt.Tooltip("prairies:N")])
-    cible = alt.Chart(pd.DataFrame({"y": [ref.reference_ha]})).mark_rule(
+    cible = alt.Chart(pd.DataFrame({"y": [ref_ha]})).mark_rule(
         color="#52514e", strokeDash=[4, 3]).encode(y="y:Q")
-    texte = alt.Chart(pd.DataFrame({"y": [ref.reference_ha], "x": [str(a0)]})).mark_text(
+    texte = alt.Chart(pd.DataFrame({"y": [ref_ha], "x": [str(a0)]})).mark_text(
         align="left", dy=-7, fontSize=11, color="#52514e").encode(
         y="y:Q", x="x:O", text=alt.value(f"niveau de {a_ref}, à retrouver en {a_obj}"))
     st.altair_chart((ligne + cible + texte).properties(height=260), width="stretch")
+    an_prec = int(niveau.index[niveau.index < an].max()) if (niveau.index < an).any() else a0
     rubrique("Indicateur de suivi",
              f"Le solde annuel des prairies déclarées, en hectares : "
-             f"{ha(niveau.loc[an] - niveau.loc[an - 1], signe=True)} entre {an - 1} et {an}.")
+             f"{ha(niveau.loc[an] - niveau.loc[an_prec], signe=True)} entre {an_prec} et {an}.")
 
 
 # --- 2. Payer le maintien --------------------------------------------------------------------------
@@ -192,7 +198,8 @@ def payer():
         somme = ["retourne_recent", "retourne_recent_enjeux", f"pp_{r0}"]
         u = perimetre.groupby("epci").agg({**{c: "sum" for c in somme}, "epci_nom": "first"})
         u = u.rename(columns={"epci_nom": "nom"})
-        u["retournement_recent_taux_annuel"] = u.retourne_recent / u[f"pp_{r0}"] / RECENT
+        delta_r = max(an - r0, 1)
+        u["retournement_recent_taux_annuel"] = u.retourne_recent / u[f"pp_{r0}"] / delta_r
     else:
         u = perimetre.rename(columns={"nom_officiel": "nom"})
     if en_pct:
