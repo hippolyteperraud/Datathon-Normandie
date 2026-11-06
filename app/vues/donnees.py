@@ -1,67 +1,24 @@
 """Carte des données : quelles données on a où, et où il en faudrait plus.
 
-En haut, une vue d'ensemble par source et une carte interactive détaillée par commune.
-En bas, chaque donnée à collecter, ses chiffres et ses communes :
-1. L'état réel des prairies sorties de la déclaration (la réponse décide quelles communes entrent
-   dans la liste où payer le maintien), éclairé par la télédétection Sentinel-2 ;
-2. Les habitats prairiaux des départements sans cartographie (Eure et Seine-Maritime).
+En haut, une vue d'ensemble par source (Registre PAC et Télédétection Sentinel-2) et une carte
+interactive détaillée par commune.
+En bas, l'état réel des prairies sorties de la déclaration (la réponse décide quelles communes
+entrent dans la liste où payer le maintien), éclairé par la télédétection Sentinel-2.
 Tout est calculé à partir des sorties du moteur et des sources en local."""
-import re
-
 import pandas as pd
 import pydeck as pdk
 import streamlit as st
 
-from commun import (ACTIONS, CAT, DE_TERRITOIRE, DEPARTEMENTS, GRIS, HORS, MIN_HA, NEUTRE, NOIR,
+from commun import (ACTIONS, CAT, DEPARTEMENTS, GRIS, HORS, MIN_HA, NEUTRE, NOIR,
                     bornes, classement, communes_carte, communes_moitie, date_source, deck,
                     evaluation, exiger_sorties, ha, hex_rgb, legende, nombre, pct,
                     selection_carte, table)
-from prairimetre.config import CACHE, DATA
-from prairimetre.sources import SOURCES
 
-PLEIN, PARTIEL = CAT[2], "#8fd3b8"
-OUEST = ["14", "50", "61"]  # départements couverts par la cartographie des habitats Natura 2000
+PLEIN = CAT[2]
 
 exiger_sorties()
 a0, an = bornes()
 t = table("communes")
-zones = table("communes_zones")
-en_site = zones[zones.zone == "sites protégés"].set_index("insee").reindex(t.index)
-
-# Dernier millésime de la carte d'occupation du sol de l'IGN (OCS GE) en local, par département
-millesimes = {}
-if (DATA / "ocsge").exists():
-    for d, m in re.findall(r"ocsge_(\d{2})_(\d{4})",
-                           " ".join(f.name for f in (DATA / "ocsge").glob("*.gpkg"))):
-        millesimes[d] = max(millesimes.get(d, 0), int(m))
-if not millesimes:
-    # Millésimes de référence par département en Normandie
-    millesimes = {"14": 2020, "27": 2020, "50": 2020, "61": 2020, "76": 2020}
-
-
-def disponible(source, cache):
-    """Une source est utilisable si son fichier est dans data/ ou déjà mis en cache."""
-    return (DATA / SOURCES[source]["fichier"]).exists() or (CACHE / f"{cache}.parquet").exists()
-
-
-@st.cache_data(show_spinner="Croisement des points d'enquête avec les communes…")
-def lucas_par_commune(_date):
-    """Points d'enquête LUCAS 2022 par commune : nombre total, nombre observés en herbe."""
-    import geopandas as gpd
-    from prairimetre.donnees import communes, lucas
-    j = gpd.sjoin(lucas(), communes()[["insee", "geometry"]], predicate="within")
-    return j.groupby("insee").agg(points=("point_id", "size"),
-                                  en_herbe=("prairie_terrain", "sum"))
-
-
-@st.cache_data(show_spinner="Croisement des habitats avec les communes…")
-def habitats_par_commune(_date):
-    """Communes touchées par la cartographie des habitats prairiaux Natura 2000."""
-    import geopandas as gpd
-    from prairimetre.donnees import communes, habitats_prairiaux
-    j = gpd.sjoin(habitats_prairiaux()[["geometry"]], communes()[["insee", "geometry"]],
-                  predicate="intersects")
-    return set(j.insee)
 
 
 @st.cache_data(show_spinner=False)
@@ -70,16 +27,6 @@ def contours_legers(_date):
     g = communes_carte()[["insee", "nom_officiel", "geometry"]].copy()
     g["geometry"] = g.geometry.simplify(0.002, preserve_topology=True)
     return g
-
-
-# La clé de cache change dès qu'une source est réimportée : les croisements se refont seuls
-lu = lucas_par_commune(date_source("lucas") + date_source("communes")) \
-    .reindex(t.index, fill_value=0) if disponible("lucas", "lucas") else None
-hab = habitats_par_commune(date_source("habitats_natura2000") + date_source("communes")) \
-    if disponible("habitats_natura2000", "habitats_prairiaux") else None
-if not hab:
-    # Repli sur les communes en site protégé des 3 départements couverts (14, 50, 61)
-    hab = set(t.index[t.dep.isin(OUEST) & (en_site.prairies.fillna(0) > 0)])
 
 
 # --- Une source par petite carte : une classe par commune, chaque classe a sa couleur et son nom ---
@@ -100,40 +47,12 @@ def src_satellite():
     }
 
 
-def src_ign():
-    editions = sorted(set(millesimes.values()), reverse=True)
-    classes = {str(m): (PLEIN if k == 0 else PARTIEL, f"édition {m}") for k, m in enumerate(editions)}
-    classes["aucune"] = (NOIR, "aucune édition")
-    return t.dep.map(lambda d: str(millesimes[d]) if d in millesimes else "aucune"), classes
-
-
-def src_lucas():
-    if lu is not None:
-        c = pd.Series("point", index=t.index).where(lu.points > 0, "aucun")
-    else:
-        c = pd.Series("aucun", index=t.index)
-    return c, {"point": (PLEIN, "au moins un point"), "aucun": (NOIR, "aucun point")}
-
-
-def src_habitats():
-    c = pd.Series("rien", index=t.index)
-    c[t.index.isin(list(hab))] = "cartes"
-    return c, {"cartes": (PLEIN, "cartographiés (14, 50, 61)"), "rien": (NOIR, "aucune cartographie")}
-
-
 SOURCES_CARTES = [
     (f"Registre PAC {a0}–{an}", src_registre,
      "Parcelles déclarées à la PAC, chaque année (IGN)."),
     ("Télédétection (Sentinel-2)", src_satellite,
      "Observation satellitaire multi-temporelle (10 m) : détecte l'herbe physique hors aides PAC."),
-    ("Occupation du sol (OCS GE)", src_ign,
-     "Photos aériennes interprétées (IGN). Range prairies et cultures dans la même classe."),
-    ("Habitats Natura 2000", src_habitats,
-     "Prairies d'intérêt européen, cartographiées dans les sites Natura 2000 du Calvados, de la Manche et de l'Orne."),
 ]
-if lu is not None:
-    SOURCES_CARTES.append(("Enquête au sol (LUCAS 2022)", src_lucas,
-                           "Points observés sur le terrain (Eurostat), tirés au sort."))
 
 
 def petite_carte(titre, source, aide):
@@ -208,17 +127,9 @@ def detail_satellite():
     return c, classes, pd.Series(detail, index=t.index)
 
 
-def detail_habitats():
-    c, classes = src_habitats()
-    detail = c.map(lambda x: "Site Natura 2000 avec cartographie des habitats" if x == "cartes"
-                   else "Aucune cartographie d'habitat prairial disponible")
-    return c, classes, detail
-
-
 VUES_GRANDES = {
     f"Registre PAC ({a0}–{an})": detail_registre,
     "Télédétection satellitaire (Sentinel-2 / Theia OSO)": detail_satellite,
-    "Habitats prairiaux (Natura 2000)": detail_habitats,
 }
 
 
@@ -276,8 +187,8 @@ def chiffre(colonne, titre, valeur, note=None, aide=None):
                    height="stretch", help=aide)
 
 
-# --- Besoin 1 : que sont devenues les prairies sorties de la déclaration ? -------------------------
-st.markdown("##### 1. L'état réel des prairies sorties de la déclaration")
+# --- Besoin : que sont devenues les prairies sorties de la déclaration ? ----------------------------
+st.markdown("##### L'état réel des prairies sorties de la déclaration")
 st.caption("À collecter : relevés de terrain ou images satellite. Question : encore en herbe ?")
 sorties = t.devenues_non_declare
 part_sortie = sorties / t[f"pp_{a0}"]
@@ -353,47 +264,6 @@ with droite:
                                sorties[tete], FORT,
                                f"hectares sortis (part de ses prairies de {a0})"), width="stretch")
 
-# --- Besoin 2 : les départements où aucun habitat prairial n'est cartographié ----------------------
-connus = zones[(zones.zone == "habitats") & zones.prairies.notna()].insee
-sans_carte = sorted(set(t.dep) - set(t.dep[connus])) if len(connus) else ["27", "76"]
-if sans_carte:
-    noms_dep = " et ".join(DEPARTEMENTS[d] for d in sans_carte)
-    ici = en_site[t.dep.isin(sans_carte) & (en_site.prairies >= 1)].sort_values("prairies", ascending=False)
-    st.markdown(f"##### 2. Les habitats prairiaux des sites protégés : {noms_dep}")
-    st.caption("À collecter : cartographie des habitats. Question : quels habitats sont touchés ?")
-    c1, c2, c3, c4 = st.columns(4)
-    chiffre(c1, "Prairies en site protégé, sans carte des habitats", ha(ici.prairies.sum()),
-            f"{nombre(len(ici))} communes")
-    chiffre(c2, f"Retournées dessus depuis {a0}", ha(ici.culture.sum()), "habitat touché : ne sait pas")
-    chiffre(c3, f"Sorties de la déclaration dessus depuis {a0}", ha(ici.non_declare.sum()),
-            "habitat touché : ne sait pas")
-    h = evaluation("habitats")
-    if h is not None:
-        h = h[h.code == "total"].iloc[0]
-        chiffre(c4, "Habitats retournés, là où ils sont cartographiés", ha(h.retourne_ha),
-                f"sur {ha(h.surface_cartographiee_ha)} cartographiés",
-                "Ce résultat ne vaut que pour les départements cartographiés : ailleurs, on ne "
-                "sait pas si les habitats tiennent aussi bien.")
-    else:
-        chiffre(c4, "Départements déjà cartographiés", "Calvados, Manche, Orne",
-                "sites Natura 2000 couverts",
-                "L'Eure (27) et la Seine-Maritime (76) n'ont pas encore de couche d'habitats Natura 2000 consolidée.")
-    gauche, droite = st.columns([3, 2], gap="large")
-    with gauche:
-        g = communes_carte().copy()
-        cibles = set(ici.index)
-        g["couleur"] = [hex_rgb(FORT) if i in cibles else hex_rgb(HORS, 200) for i in g.insee]
-        g["valeur"] = g.insee.map(lambda i: f"{ha(en_site.prairies[i])} de prairies en site protégé")
-        g["perte"] = g.insee.map(lambda i: f"{ha(en_site.culture[i])} retournés")
-        carte_besoin(g[["insee", "nom_officiel", "couleur", "valeur", "perte", "geometry"]],
-                     "besoin_habitats", "<b>{nom_officiel}</b><br/>{valeur}<br/>{perte}",
-                     [(FORT, f"prairies en site protégé, sans carte : {nombre(len(ici))} communes"),
-                      (HORS, f"autres : {nombre(len(g) - len(ici))}")])
-    with droite:
-        tete = ici.index[:15]
-        st.altair_chart(classement(t.nom_officiel[tete], ici.prairies[tete], FORT,
-                                   "hectares de prairies en site protégé"), width="stretch")
-
 # --- Le tableau complet, téléchargeable --------------------------------------------------------------
 _sat_c, _sat_cls = src_satellite()
 export = pd.DataFrame({
@@ -403,16 +273,7 @@ export = pd.DataFrame({
     "retournees_ha": t.devenues_culture.round(0).values,
     "sorties_declaration_ha": sorties.round(0).values,
     "moitie_des_sorties": t.index.isin(moitie),
-    "liste_payer_le_maintien": t.index.isin(liste_payer),
-    "prairies_en_site_protege_ha": en_site.prairies.round(0).values,
-    "site_protege_sans_carte_habitats": t.dep.isin(sans_carte).values & (en_site.prairies >= 1).values})
-if lu is not None:
-    export["points_lucas"] = lu.points.values
-    export["points_lucas_en_herbe"] = lu.en_herbe.values
-if hab is not None:
-    export["habitats_natura2000"] = t.index.isin(list(hab))
-if millesimes:
-    export["carte_ign_millesime"] = t.dep.map(millesimes).values
+    "liste_payer_le_maintien": t.index.isin(liste_payer)})
 st.download_button(f"Télécharger le tableau ({nombre(len(export))} communes, CSV)",
                    export.to_csv(sep=";", decimal=",", index=False).encode("utf-8-sig"),
                    "prairimetre_couverture_donnees.csv", "text/csv", icon=":material/download:",
