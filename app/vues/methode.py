@@ -55,8 +55,6 @@ NOMS_SOURCES = {
     "saa_prairies": "Statistique agricole annuelle (prairies)",
     "habitats_natura2000": "Habitats Natura 2000 (Calvados, Manche, Orne)",
     "zones_humides_dreal": "Zones humides (DREAL)", "znieff1": "ZNIEFF de type 1",
-    "theia_oso": "Télédétection Theia OSO (Sentinel-2)",
-    "copernicus_grassland": "Copernicus HRL Grassland",
 }
 
 
@@ -141,12 +139,6 @@ with preuves:
                                f"de la culture, n'a que "
                                f"{int(lu.loc['sorties de la déclaration', 'prairies'])} points "
                                "dans ces parcelles : trop peu pour conclure.")
-                st.info(
-                    "🛰️ **Levée d'incertitude par Télédétection Satellitaire (Sentinel-2 & Theia OSO) :** "
-                    "Sur l'échantillon des 30 parcelles sorties du RPG (audit 2024-2025), **81,6 % de la surface** "
-                    "maintient un profil NDVI herbagé pérenne (> 0.58 au printemps). Environ 45 320 ha sur les 55 539 ha "
-                    "sortis sont donc de fausses pertes administratives (haras, petits élevages, marais communaux hors PAC)."
-                )
 
         # 2. Les règles et les zonages -----------------------------------------------------------------
         z = evaluation("zonages", index_col=0)
@@ -334,12 +326,7 @@ with moteur:
     # Nouveau RPG : un bouton
     with st.container(border=True):
         st.markdown("**Un nouveau registre parcellaire est sorti ?**")
-        texte_annees = (
-            f"Les données vont aujourd'hui de **{A[0]} à {A[-1]}**."
-            if A
-            else "Aucun millésime RPG n'est encore installé en local (le suivi de base porte de 2018 à 2025)."
-        )
-        st.markdown(f"{texte_annees} Le moteur cherche le "
+        st.markdown(f"Les données vont aujourd'hui de **{A[0]} à {A[-1]}**. Le moteur cherche le "
                     "dernier millésime publié par l'IGN, le télécharge, le contrôle et recalcule "
                     "tout (environ une heure : téléchargement, calcul, évaluation).")
         if st.button("Chercher et installer le dernier millésime", type="primary",

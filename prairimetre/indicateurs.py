@@ -19,7 +19,7 @@ import numpy as np
 import pandas as pd
 
 from .config import ANNEE_OBJECTIF, ANNEE_REFERENCE_OBJECTIF, CACHE, MIN_HA, RECENT, SORTIES, annees
-from .donnees import FAMILLES, ZONAGES, communes, habitats_prairiaux, prairies, region, rpg, zonage
+from .donnees import FAMILLES, ZONAGES, communes, habitats_prairiaux, prairies, rpg, zonage
 from .suivi import CATEGORIES, avec_commune, categorie, croiser, devenir, origine
 
 FLUX = {"culture": "culture", "non déclaré": "non_declare", "prairie temporaire": "temporaire"}
@@ -40,15 +40,7 @@ LEVIERS = {
 def periodes():
     """Début, fin et début de la période récente."""
     A = annees()
-    if not A:
-        return 2018, 2025, 2022
-    if len(A) == 1:
-        return A[0], A[0], A[0]
-    r0 = A[-1] - RECENT
-    if r0 not in A:
-        candidats = [a for a in A if a <= r0]
-        r0 = candidats[-1] if candidats else A[0]
-    return A[0], A[-1], r0
+    return A[0], A[-1], A[-1] - RECENT
 
 
 # --- Zonages des prairies d'une année ----------------------------------------------------------
@@ -65,25 +57,15 @@ def appartenance(x, y):
     out = {}
     for nom in ZONAGES:
         z = zonage(nom)
-        if len(z) == 0:
-            out[f"z_{nom}"] = np.zeros(len(pts), bool)
-            if nom == "pnr":
-                out["pnr"] = np.array([None] * len(pts))
-            if nom == "aires_alimentation_captages":
-                out["aac"] = np.array([None] * len(pts))
-            continue
         iz, ip = pts.sindex.query(z.geometry, predicate="contains")
         dedans = np.zeros(len(pts), bool)
         dedans[ip] = True
         out[f"z_{nom}"] = dedans
         if nom == "pnr":
-            val = z.nom_site.values[iz] if "nom_site" in z.columns else np.array([None] * len(iz))
-            out["pnr"] = pd.Series(val, index=ip).groupby(level=0).first() \
+            out["pnr"] = pd.Series(z.nom_site.values[iz], index=ip).groupby(level=0).first() \
                 .reindex(range(len(pts))).values
         if nom == "aires_alimentation_captages":
-            col_aac = "cdaac" if "cdaac" in z.columns else z.columns[0]
-            val = z[col_aac].astype(str).values[iz]
-            out["aac"] = pd.Series(val, index=ip).groupby(level=0) \
+            out["aac"] = pd.Series(z.cdaac.astype(str).values[iz], index=ip).groupby(level=0) \
                 .first().reindex(range(len(pts))).values
     out = pd.DataFrame(out)
     for famille, noms in FAMILLES.items():
@@ -135,11 +117,7 @@ def _flux(a, b, par=None):
 def serie():
     """Année par année, en Normandie : surface de départ et d'arrivée, flux (graphique annuel)."""
     A = annees()
-    if len(A) < 2:
-        cols = [f"sortie_{FLUX[c]}" for c in FLUX] + [f"entree_{FLUX[c]}" for c in FLUX]
-        return pd.DataFrame(columns=["depart", "arrivee", "solde"] + cols).rename_axis("periode")
-    flux_dict = {f"{a}-{b}": _flux(a, b) for a, b in zip(A[:-1], A[1:])}
-    t = pd.concat(flux_dict, names=["periode"])
+    t = pd.concat({f"{a}-{a + 1}": _flux(a, a + 1) for a in A[:-1]}, names=["periode"])
     return t.droplevel(-1)
 
 
@@ -180,12 +158,8 @@ def cultures_destination():
 def objectif():
     """Trajectoire vers l'objectif 2030 : surface de référence et écart."""
     s = serie()
-    A = annees()
-    if len(A) < 2 or len(s) == 0:
-        return pd.DataFrame(columns=["annee", "prairies_ha", "reference_ha", "annee_reference",
-                                     "annee_objectif", "ecart_ha"])
     niveaux = pd.Series(list(s.depart) + [s.arrivee.iloc[-1]],
-                        index=[int(p[:4]) for p in s.index] + [A[-1]])
+                        index=[int(p[:4]) for p in s.index] + [annees()[-1]])
     ref = niveaux.get(ANNEE_REFERENCE_OBJECTIF)
     return pd.DataFrame({"annee": niveaux.index, "prairies_ha": niveaux.values,
                          "reference_ha": ref, "annee_reference": ANNEE_REFERENCE_OBJECTIF,
@@ -258,9 +232,8 @@ def table_communes():
     base = t[f"pp_{a0}"]
     valide = base >= MIN_HA
     t["solde_taux"] = (t.solde / base).where(valide)
-    t["retournement_taux_annuel"] = (t.retourne / base / max(an - a0, 1)).where(valide)
-    delta_r = max(an - r0, 1)
-    t["retournement_recent_taux_annuel"] = (t.retourne_recent / t[f"pp_{r0}"] / delta_r) \
+    t["retournement_taux_annuel"] = (t.retourne / base / (an - a0)).where(valide)
+    t["retournement_recent_taux_annuel"] = (t.retourne_recent / t[f"pp_{r0}"] / RECENT) \
         .where(t[f"pp_{r0}"] >= MIN_HA)
 
     # Mécanisme dominant : le solde le plus négatif entre culture et non-déclaration
@@ -313,12 +286,8 @@ def zones_communes():
     a0, an, _ = periodes()
     z, d = zonages_annee(a0), devenir(a0, an)
     h = habitats_prairiaux()
-    if len(h):
-        m = croiser(prairies(a0), h.assign(categorie="habitat"))
-        habitat = m["habitat"] if "habitat" in m else pd.Series(0.0, index=m.index)
-        part_habitat = (habitat / m.ha).fillna(0)
-    else:
-        part_habitat = pd.Series(0.0, index=d.index)
+    m = croiser(prairies(a0), h.assign(categorie="habitat"))
+    habitat = m["habitat"] if "habitat" in m else pd.Series(0.0, index=m.index)
     zones = {
         "zones humides": z.z_bcae_zones_humides_tourbieres | z.z_zones_humides_dreal
         | z.z_par7_zones_humides_est,
@@ -326,13 +295,13 @@ def zones_communes():
         "prairies sensibles": z.z_prairies_sensibles,
         "ZNIEFF": z.z_znieff1,
         "captages": z.z_aires_alimentation_captages,
-        "habitats": part_habitat,
+        "habitats": (habitat / m.ha).fillna(0),
     }
     cols = {"ha": "prairies", "prairie permanente": "toujours", "culture": "culture",
             "non déclaré": "non_declare"}
     c = communes()
     cartographiees = set(gpd.sjoin(h[["geometry"]], c[["insee", "geometry"]],
-                                   predicate="intersects").insee) if len(h) else set()
+                                   predicate="intersects").insee)
     lignes = []
     for zone, part in zones.items():
         g = d[list(cols)].rename(columns=cols).mul(np.asarray(part, float), axis=0) \
@@ -359,41 +328,27 @@ def _intervenant(texte):
 
 
 def table_captages(t):
+    """Une ligne par aire d'alimentation de captage : qui la gère, ses prairies, ce qu'elle perd.
+    Seule la partie normande de chaque aire est comptée."""
+    from .donnees import region
     a0, an, r0 = periodes()
-    Zn, Dr = zonages_annee(an), devenir(r0, an)
-    Zr, D = zonages_annee(r0), devenir(a0, an)
-    debut = pd.DataFrame({"aac": Zr.aac, "insee": Zr.insee, "ha": Zr.ha,
-                          "retourne": D.culture.values,
+    D, Dr = devenir(a0, an), devenir(r0, an)
+    Z0, Zr, Zn = zonages_annee(a0), zonages_annee(r0), normandie(zonages_annee(an))
+    debut = pd.DataFrame({"aac": Z0.aac, "insee": Z0.insee, "ha": Z0.ha, "retourne": D.culture.values,
                           "sortie": D["non déclaré"].values}).dropna(subset=["aac", "insee"])
     recent = pd.DataFrame({"aac": Zr.aac, "insee": Zr.insee, "ha": Zr.ha,
                            "retourne": Dr.culture.values}).dropna(subset=["aac", "insee"])
     a = zonage("aires_alimentation_captages")
-    if len(a) == 0:
-        return pd.DataFrame(columns=[
-            "nom", "maitre_ouvrage", "service_etat", "point_prelevement", "agence_eau",
-            "surface_normandie_ha", f"pp_{a0}", f"pp_{r0}", f"pp_{an}", "retourne_ha",
-            "retourne_recent_ha", "sortie_declaration_ha", "solde", "solde_taux",
-            "part_en_prairie", "retournement_recent_taux_annuel", "communes",
-            "communes_principales", "rang_hectares", "rang_taux"
-        ]).rename_axis("aac"), pd.DataFrame(columns=["aac", "insee", "prairies_ha"])
-
-    col_cdaac = "cdaac" if "cdaac" in a.columns else a.columns[0]
-    a = a.assign(cdaac=a[col_cdaac].astype(str)).drop_duplicates("cdaac").set_index("cdaac")
-    reg_geom = region().geometry.iloc[0]
-    surface = a.geometry.intersection(reg_geom).area / 1e4
-
-    nom_aac = a.nomdeaacadministratif if "nomdeaacadministratif" in a.columns else a.index
-    cmd_aac = a.commandaac.map(_intervenant) if "commandaac" in a.columns else pd.Series(None, index=a.index)
-    adm_aac = a.adminaac.map(_intervenant) if "adminaac" in a.columns else pd.Series(None, index=a.index)
-    ptp_aac = a.ptp.map(_intervenant) if "ptp" in a.columns else pd.Series(None, index=a.index)
-    bassin = ("Agence de l'eau " + a.nomcircadminbassin.astype(str).str.title()) if "nomcircadminbassin" in a.columns else pd.Series("Agence de l'eau Seine-Normandie", index=a.index)
+    a = a.assign(cdaac=a.cdaac.astype(str)).drop_duplicates("cdaac").set_index("cdaac")
+    surface = a.geometry.intersection(region().geometry.iloc[0]).area / 1e4
 
     g = pd.DataFrame({
-        "nom": nom_aac,
-        "maitre_ouvrage": cmd_aac,
-        "service_etat": adm_aac,
-        "point_prelevement": ptp_aac,
-        "agence_eau": bassin,
+        "nom": a.nomdeaacadministratif,
+        "maitre_ouvrage": a.commandaac.map(_intervenant),
+        "service_etat": a.adminaac.map(_intervenant),
+        "point_prelevement": a.ptp.map(_intervenant),
+        # toujours connue (le Sandre ne renseigne pas toujours le maître d'ouvrage)
+        "agence_eau": "Agence de l'eau " + a.nomcircadminbassin.str.title(),
         "surface_normandie_ha": surface,
         f"pp_{a0}": debut.groupby("aac").ha.sum(),
         f"pp_{r0}": recent.groupby("aac").ha.sum(),
@@ -407,8 +362,7 @@ def table_captages(t):
     g["solde"] = g[f"pp_{an}"] - g[f"pp_{a0}"]
     g["solde_taux"] = g.solde / g[f"pp_{a0}"]
     g["part_en_prairie"] = g[f"pp_{an}"] / g.surface_normandie_ha
-    delta_r = max(an - r0, 1)
-    g["retournement_recent_taux_annuel"] = (g.retourne_recent_ha / g[f"pp_{r0}"] / delta_r) \
+    g["retournement_recent_taux_annuel"] = (g.retourne_recent_ha / g[f"pp_{r0}"] / RECENT) \
         .where(g[f"pp_{r0}"] >= MIN_HA)
     noms = t.nom_officiel
     par_commune = Zn.dropna(subset=["aac"]).groupby(["aac", "insee"]).ha.sum().reset_index()
@@ -427,10 +381,10 @@ def flux_commune(insee):
     """Entrées, sorties et solde d'une commune, année par année."""
     A = annees()
     lignes = {}
-    for a, b in zip(A[:-1], A[1:]):
-        t = _flux(a, b, "insee")
+    for a in A[:-1]:
+        t = _flux(a, a + 1, "insee")
         if insee in t.index:
-            lignes[f"{a}-{b}"] = t.loc[insee]
+            lignes[f"{a}-{a + 1}"] = t.loc[insee]
     return pd.DataFrame(lignes).T.rename_axis("periode")
 
 
@@ -452,14 +406,6 @@ def parcelles_commune(insee):
 
 def calculer():
     """Écrit toutes les tables du compteur et de la boussole dans sorties/."""
-    A = annees()
-    if len(A) < 2:
-        print(f"\n[INFO] Pour calculer les flux temporels (2018 -> 2025), au moins 2 millésimes RPG sont requis.")
-        print(f"       Actuellement en local : {A}.")
-        print(f"       Téléchargement conseillé du millésime de départ : python -m prairimetre telecharger rpg --annee 2018")
-        serie().to_csv(SORTIES / "serie_region.csv")
-        return None
-
     serie().to_csv(SORTIES / "serie_region.csv")
     bilan_direct().to_csv(SORTIES / "bilan_direct.csv")
     cultures_destination().to_csv(SORTIES / "cultures_destination.csv")

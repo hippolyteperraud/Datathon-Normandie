@@ -13,12 +13,8 @@ from prairimetre.indicateurs import parcelles_commune
 
 exiger_sorties()
 a0, an = bornes()
-t, z = table("communes"), table("communes_zones").set_index(["insee", "zone"])
-A_communes = [int(c[3:]) for c in t.columns if c.startswith("pp_")]
 r0 = an - RECENT
-if r0 not in A_communes:
-    candidats = [a for a in A_communes if a <= r0]
-    r0 = candidats[-1] if candidats else a0
+t, z = table("communes"), table("communes_zones").set_index(["insee", "zone"])
 ZONES = {"zones humides": "Zones humides",
          "sites protégés": "Sites protégés",
          "prairies sensibles": "Prairies sensibles",

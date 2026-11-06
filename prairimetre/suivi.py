@@ -60,12 +60,7 @@ def avec_commune(g):
     return j[~j.index.duplicated()][["insee", "dep"]]
 
 
-_MEMOIRE_SUIVI = {}
-
-
 def _croisement(nom, prairies_de, rpg_de):
-    if nom in _MEMOIRE_SUIVI:
-        return _MEMOIRE_SUIVI[nom]
     f = CACHE / f"{nom}.parquet"
     if f.exists():
         out = pd.read_parquet(f)
@@ -80,7 +75,6 @@ def _croisement(nom, prairies_de, rpg_de):
     for c in CATEGORIES:  # mêmes colonnes quelle que soit l'année
         if c not in out:
             out[c] = 0.0
-    _MEMOIRE_SUIVI[nom] = out
     return out
 
 

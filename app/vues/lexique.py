@@ -1,50 +1,14 @@
 """Lexique et définitions : les mots de l'outil, en clair, et les chiffres qui circulent sur les
 prairies normandes."""
-import importlib
 import streamlit as st
 
-import commun
-importlib.reload(commun)
 from commun import LEXIQUE, OFFICIEL, SEUIL_RATIO_PCT, bornes, ha, manquantes, nombre, table
 from prairimetre.config import ANNEE_REFERENCE_OBJECTIF
 
 st.title("Lexique et définitions")
+for mot, sens in LEXIQUE.items():
+    st.markdown(f"**{mot}**  \n{sens[0].upper()}{sens[1:]}")
 
-recherche = st.text_input(
-    "Filtrer les termes du lexique",
-    placeholder="Ex. : NDVI, BCAE, RPG, retournement, captage, Sentinel-2…",
-    label_visibility="collapsed",
-)
-
-termes_filtres = {
-    mot: sens
-    for mot, sens in LEXIQUE.items()
-    if not recherche.strip()
-    or recherche.lower() in mot.lower()
-    or recherche.lower() in sens.lower()
-}
-
-if not termes_filtres:
-    st.info(f"Aucun terme ne correspond à « {recherche} ».")
-else:
-    for mot, sens in termes_filtres.items():
-        st.markdown(f"**{mot}**  \n{sens[0].upper()}{sens[1:]}")
-
-st.divider()
-st.subheader("Barème biophysique du score NDVI (Sentinel-2)")
-st.markdown("""
-Formule : $\\text{NDVI} = \\frac{\\text{NIR (B08)} - \\text{Red (B04)}}{\\text{NIR (B08)} + \\text{Red (B04)}}$ (résolution spatiale : **10 m**, revisite : **5 jours**).
-
-| Couvert observé | NDVI minimal (hiver / labour) | NDVI maximal (printemps) | Amplitude annuelle ($\\max - \\min$) | Diagnostic Prairimètre |
-|---|---|---|---|---|
-| **Prairie permanente maintenue** | $\\ge 0,40$ | $\\ge 0,58$ | $\\le 0,28$ | **Maintien en herbe** (fausse perte administrative si sortie PAC) |
-| **Friche ou pâture extensive** | $\\ge 0,32$ | Moyenne $\\ge 0,48$ | Modérée | **Maintien en herbe** (extensif / chevaux / délaissé) |
-| **Culture annuelle (blé, maïs…)** | $< 0,25$ (sol nu / labour) | $> 0,65$ | $> 0,35$ | **Retournement réel** (perte de prairie) |
-| **Boisement / forêt dense** | $> 0,65$ | Moyenne $> 0,72$ | Faible | **Boisement / ligneux** |
-| **Surface bâtie ou minérale** | $< 0,25$ | $< 0,28$ | Très faible | **Artificialisation** (bâti, voirie, carrière) |
-""")
-
-st.divider()
 st.subheader("Quatre chiffres, quatre définitions")
 if manquantes():
     st.info("Pas encore de résultats : lancez le calcul dans Données et méthode → Moteur.")
