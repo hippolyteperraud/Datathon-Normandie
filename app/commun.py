@@ -18,7 +18,7 @@ from prairimetre.config import CACHE, DATA, MIN_HA, RACINE, RECENT, SORTIES, ann
 from prairimetre.sources import SOURCES
 
 TABLES = ["communes", "communes_zones", "serie_region", "captages", "communes_captages",
-          "bilan_direct", "cultures_destination", "objectif"]
+          "bilan_direct", "cultures_destination", "objectif", "suivi_sorties"]
 
 # Chiffre officiel (vérifié sur Légifrance le 22/10/2026)
 OFFICIEL = {"perte_ha": -59703, "perte_pct": -8.9, "ratio_evol_pct": -1.97,

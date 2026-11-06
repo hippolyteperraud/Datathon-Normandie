@@ -329,6 +329,13 @@ with sources:
             colonne.markdown(f"**{titre}**\n" + "\n".join(ligne_source(n) for n in noms))
     st.caption("Toutes ouvertes (Licence Ouverte 2.0). `python importer_donnees.py` les retélécharge "
                "et les trace dans data/manifest.json.")
+    from references import AGRICULTEUR_ACTIF, FIN_AUTORISATION_2019, RATIOS
+    textes = [(r["texte"], r["lien"], f"ratio de prairies {r['annee']}") for r in RATIOS] + [
+        (AGRICULTEUR_ACTIF["texte"], AGRICULTEUR_ACTIF["lien"], "sorties de 2023, agriculteur actif"),
+        (FIN_AUTORISATION_2019["texte"], FIN_AUTORISATION_2019["lien"],
+         "fin du régime d'autorisation en 2019")]
+    st.markdown("**Textes officiels qui expliquent les années à part**\n"
+                + "\n".join(f"- [{t}]({lien}) : {objet}" for t, lien, objet in textes))
 
 # --- Les mots ---------------------------------------------------------------------------------------
 with mots:

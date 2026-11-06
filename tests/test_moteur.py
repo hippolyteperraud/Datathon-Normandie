@@ -11,6 +11,7 @@ from shapely.geometry import box
 
 from prairimetre.donnees import code5
 from prairimetre.evaluation import etat_ocsge
+from prairimetre.indicateurs import suivi_entre
 from prairimetre.suivi import categorie, croiser
 
 
@@ -72,6 +73,32 @@ class Ocsge(unittest.TestCase):
         us = pd.Series(["US1.1", "US5", "US2", "US1.1", "US6.3"])
         self.assertEqual(etat_ocsge(cs, us).tolist(), [
             "herbe, usage agricole", "herbe, autre usage", "artificialisé", "ligneux", "autre"])
+
+
+class SuiviSorties(unittest.TestCase):
+    """Trois prairies : une sortie entière qui revient, une sortie entière qui ne revient pas,
+    une à moitié retournée."""
+
+    def test_sorties_revenues_ou_non(self):
+        court = pd.DataFrame({"dep": ["14", "14", "50"], "ha": [2.0, 3.0, 4.0],
+                              "non déclaré": [2.0, 3.0, 0.0], "culture": [0.0, 0.0, 2.0]})
+        long = court.assign(**{"non déclaré": [0.0, 3.0, 0.0]})
+        g = suivi_entre(court, long)
+        r = g.loc["région"]
+        self.assertAlmostEqual(r.sortis_ha, 5.0)
+        self.assertAlmostEqual(r.entieres_ha, 5.0)
+        self.assertAlmostEqual(r.toujours_hors_ha, 3.0)
+        self.assertAlmostEqual(r.redeclares_ha, 2.0)
+        self.assertAlmostEqual(r.retournes_ha, 2.0)
+        self.assertAlmostEqual(g.loc["50", "sortis_ha"], 0.0)
+
+    def test_jamais_plus_hors_que_sorti(self):
+        # une parcelle qui n'était pas sortie l'année suivante, mais l'est à la fin
+        court = pd.DataFrame({"dep": ["61"], "ha": [1.0], "non déclaré": [0.2], "culture": [0.0]})
+        long = court.assign(**{"non déclaré": [1.0]})
+        r = suivi_entre(court, long).loc["région"]
+        self.assertAlmostEqual(r.toujours_hors_ha, 0.2)
+        self.assertAlmostEqual(r.entieres_ha, 0.0)
 
 
 if __name__ == "__main__":

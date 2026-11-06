@@ -7,6 +7,7 @@ parcelle qui alterne, ne servent qu'au graphique annuel. Seul le territoire norm
 
 Sorties (dossier sorties/), chacune lue par l'application :
 - serie_region.csv : entrées, sorties et solde, année par année (graphique) ;
+- suivi_sorties.csv : les sorties de la déclaration de chaque année, revenues ensuite ou non ;
 - bilan_direct.csv : prairies disparues et apparues entre le début et la fin ;
 - cultures_destination.csv : ce que sont devenues les prairies retournées ;
 - communes.csv : une ligne par commune (pertes, mécanisme, certitude, zonages, contexte agricole) ;
@@ -119,6 +120,38 @@ def serie():
     A = annees()
     t = pd.concat({f"{a}-{a + 1}": _flux(a, a + 1) for a in A[:-1]}, names=["periode"])
     return t.droplevel(-1)
+
+
+def suivi_entre(court, long):
+    """Prairies sorties de la déclaration entre a et a+1 (court = devenir(a, a+1)), et ce qu'elles
+    sont à la fin de la série (long = devenir(a, fin), même index). Par département et pour la
+    région : sorties, sorties en parcelles entières (plus de 90 % de la parcelle), surface toujours
+    hors déclaration à la fin, surface déclarée de nouveau, et surface retournée en culture."""
+    nd, nd_fin = court["non déclaré"], long["non déclaré"].reindex(court.index).fillna(0)
+    hors = np.minimum(nd, nd_fin)
+    t = pd.DataFrame({"dep": court.dep.values,
+                      "sortis_ha": nd.values,
+                      "entieres_ha": nd.where(nd > 0.9 * court.ha, 0).values,
+                      "toujours_hors_ha": hors.values,
+                      "redeclares_ha": (nd - hors).values,
+                      "retournes_ha": court.culture.values})
+    g = t.groupby("dep").sum()
+    g.loc["région"] = g.sum()
+    return g
+
+
+def suivi_sorties():
+    """Année par année : les prairies sorties de la déclaration, déclarées de nouveau ensuite ou
+    non. Un trou du registre (parcelles absentes une année puis revenues) se voit à une part
+    redéclarée anormale ; un départ d'exploitations, à des parcelles entières qui ne reviennent pas."""
+    A = annees()
+    fin = A[-1]
+    morceaux = []
+    for a in A[:-1]:
+        court = normandie(devenir(a, a + 1))
+        long = court if a + 1 == fin else devenir(a, fin)
+        morceaux.append(suivi_entre(court, long).assign(periode=f"{a}-{a + 1}", fin=fin))
+    return pd.concat(morceaux).rename_axis("dep").reset_index()
 
 
 def bilan_direct():
@@ -407,6 +440,7 @@ def parcelles_commune(insee):
 def calculer():
     """Écrit toutes les tables du compteur et de la boussole dans sorties/."""
     serie().to_csv(SORTIES / "serie_region.csv")
+    suivi_sorties().to_csv(SORTIES / "suivi_sorties.csv", index=False)
     bilan_direct().to_csv(SORTIES / "bilan_direct.csv")
     cultures_destination().to_csv(SORTIES / "cultures_destination.csv")
     objectif().to_csv(SORTIES / "objectif.csv", index=False)
