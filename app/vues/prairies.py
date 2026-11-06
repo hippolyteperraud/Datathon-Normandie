@@ -1,381 +1,192 @@
-"""Où agir : les trois moyens d'agir pour les prairies permanentes. Pour chacun : le conseil, ce
-qui le fonde, pour qui, où, et l'indicateur qui en suivra l'effet.
+"""Suivre l'objectif 2030 : où en sont les prairies permanentes déclarées, ce qu'on ne sait pas
+(chiffres non confirmés ou bizarres, dits explicitement), et ce qui les retient.
 
-Aucun conseil n'est écrit à la main : chaque phrase est tirée des sorties du moteur (sorties/),
-et change d'elle-même avec chaque nouveau registre parcellaire. Les comparaisons (« moins »,
-« autant », « plus » qu'ailleurs) sont tranchées par les tests de robustesse du moteur."""
+Rien n'est écrit à la main : chaque chiffre est tiré des sorties du moteur (sorties/) et change de
+lui-même avec chaque nouveau registre parcellaire. Une année est dite « bizarre » quand ses sorties
+de la déclaration dépassent le double d'une année ordinaire (médiane des autres années)."""
 import altair as alt
 import pandas as pd
 import streamlit as st
 
-from commun import (ACTIONS, AXE_FR, DE_TERRITOIRE, DEPARTEMENTS, GRIS, HORS, OFFICIEL,
-                    SEUIL_RATIO_PCT, arrondi_ha, bornes, captages_carte, classement,
-                    communes_carte, communes_moitie, comparaison, contact_captage,
-                    couleurs_liste, deck, epci_carte, etat_sorties, evaluation, exiger_sorties,
-                    ha, legende, nom_propre, nombre, pct, selection_carte, table)
-from humain import bandeau, fois_caen, pourquoi
-from prairimetre.config import MIN_HA, RECENT
+from commun import (ACTIONS, AXE_FR, FLUX_COULEURS, OFFICIEL, SEUIL_RATIO_PCT, bornes,
+                    classement, comparaison, evaluation, exiger_sorties, ha, nombre, table)
+from humain import bandeau, pourquoi
+
+FOIS_ORDINAIRE = 2  # au-delà du double d'une année ordinaire, une année est à expliquer
 
 exiger_sorties()
 a0, an = bornes()
-t, k, cc = table("communes"), table("captages"), table("communes_captages")
-A_communes = [int(c[3:]) for c in t.columns if c.startswith("pp_")]
-r0 = an - RECENT
-if r0 not in A_communes:
-    candidats = [a for a in A_communes if a <= r0]
-    r0 = candidats[-1] if candidats else a0
-bilan, obj = table("bilan_direct"), table("objectif")
-cl = evaluation("classes", index_col=0)
-calc = t[t.statut == "calculé"]
+obj, serie, bilan = table("objectif"), table("serie_region"), table("bilan_direct")
+saa, cl = evaluation("saa"), evaluation("classes", index_col=0)
+COULEUR, BIZARRE = ACTIONS["suivre"]["couleur"], FLUX_COULEURS["non déclaré"]
 
-# --- Les chiffres qui fondent les conseils ---------------------------------------------------------
-region = bilan.loc["région"]
-pp0, ppn = region[("disparues_devenues", "depart")], region[("nouvelles_venant_de", "arrivee")]
-solde = ppn - pp0
-retournees = region[("disparues_devenues", "culture")]
-sorties = region[("disparues_devenues", "non déclaré")]
+# --- Les chiffres -------------------------------------------------------------------------------
+niveau = obj.set_index("annee").prairies_ha
 ref = obj.iloc[0]
 a_ref, a_obj = int(ref.annee_reference), int(ref.annee_objectif)
-niveau = obj.set_index("annee").prairies_ha
-ref_ha = ref.reference_ha if pd.notna(ref.reference_ha) else (niveau.loc[a_ref] if a_ref in niveau.index else niveau.iloc[0])
-manque = ref_ha - (niveau.loc[an] if an in niveau.index else niveau.iloc[-1])
-effort = manque / max(a_obj - an, 1)                # à regagner chaque année d'ici a_obj
-n_moitie = len(communes_moitie(t))
-exemples = calc[calc.mecanisme == ACTIONS["exemple"]["mecanisme"]]
+ref_ha = ref.reference_ha if pd.notna(ref.reference_ha) else niveau.get(a_ref, niveau.iloc[0])
+ecart = niveau.loc[an] - ref_ha                      # < 0 : il manque des prairies
+depuis_a0 = niveau.loc[an] - niveau.loc[a0]
+sorties = bilan.loc["région"][("disparues_devenues", "non déclaré")]
 
+# Une période par ligne (« 2022-2023 ») : l'année d'arrivée, le solde, les sorties de la déclaration
+s = serie.assign(fin=serie.periode.str[-4:].astype(int))
+s["libelle"] = s.periode.str.replace("-", "→")
+s["fois"] = [v / s.sortie_non_declare.drop(i).median() for i, v in s.sortie_non_declare.items()]
+s["bizarre"] = s.fois > FOIS_ORDINAIRE
+if saa is not None:
+    s = s.merge(saa[["annee", "saa_variation"]], left_on="fin", right_on="annee", how="left")
+else:
+    s["saa_variation"] = float("nan")
+bizarres = s[s.bizarre]
+apres = int(bizarres.fin.max()) if len(bizarres) else None   # fin de la dernière année bizarre
 
-# --- En-tête ----------------------------------------------------------------------------------------
+# --- En-tête ------------------------------------------------------------------------------------
 bandeau("Prairimètre", "Le suivi des prairies permanentes de Normandie")
-st.markdown(
-    f"#### Depuis {a0}, la Normandie a {'perdu' if solde < 0 else 'gagné'} "
-    f"{arrondi_ha(abs(solde))} ha de prairies déclarées ({pct(solde / pp0, 0, signe=True)}, "
-    f"{fois_caen(abs(solde))}). "
-    + (f"Il en manque {arrondi_ha(manque)} ha pour retrouver le niveau de {a_ref}, objectif de "
-       f"{a_obj}." if manque > 0 else
-       f"Le niveau de {a_ref}, objectif de {a_obj}, est tenu ({ha(-manque, signe=True)}).")
-    + " Trois moyens d'agir :")
-
-# --- Les trois moyens : un conseil court chacun, un clic pour le détail ------------------------------
-COURTS = {
-    "suivre": (f"Regagner {arrondi_ha(effort)} ha par an d'ici {a_obj}, compté en hectares à "
-               "chaque registre." if manque > 0 else
-               f"Garder le niveau de {a_ref}, mesuré en hectares à chaque registre."),
-    "payer": (f"Financer le maintien de l'herbe là où l'on retourne : la moitié du retournement "
-              f"récent se fait dans {n_moitie} communes."),
-    "exemple": (f"{nombre(len(exemples))} communes gardent leurs prairies depuis {a0} : faire "
-                "connaître leurs éleveurs là où l'on retourne."),
-}
-MOYENS = list(COURTS)
-if st.session_state.get("moyen") not in MOYENS:
-    st.session_state["moyen"] = MOYENS[0]
+st.title(f"Suivre l'objectif {a_obj}")
+st.markdown(f"Objectif régional : **zéro perte nette de prairies permanentes en {a_obj}**, par "
+            f"rapport à {a_ref}.")
 
 
-def choisir(m):
-    st.session_state["moyen"] = m
+def chiffre(colonne, titre, valeur, note):
+    colonne.metric(titre, valeur, note, delta_color="off", delta_arrow="off", border=True)
 
 
-for i, (col, m) in enumerate(zip(st.columns(3), MOYENS), start=1):
-    with col.container(border=True, height="stretch"):
-        st.markdown(f"**{i}. {ACTIONS[m]['titre']}**")
-        st.markdown(COURTS[m])
-        st.caption(f"Pour : {ACTIONS[m]['pour']}")
-        st.button("Voir le détail" if st.session_state["moyen"] != m else "Affiché ci-dessous",
-                  key=f"btn_{m}", on_click=choisir, args=(m,), width="stretch",
-                  type="primary" if st.session_state["moyen"] == m else "secondary")
+c1, c2, c3 = st.columns(3)
+chiffre(c1, f"Prairies déclarées en {an}", ha(niveau.loc[an]),
+        f"{ha(depuis_a0, signe=True)} depuis {a0}")
+chiffre(c2, f"Écart au niveau de {a_ref}", ha(ecart, signe=True), f"référence {a_ref} non confirmée")
+if apres is not None and apres < an:
+    chiffre(c3, f"Depuis {apres}", ha(niveau.loc[an] - niveau.loc[apres], signe=True),
+            f"après l'année bizarre {apres - 1}→{apres}")
+elif an - 1 in niveau.index:
+    chiffre(c3, f"Entre {an - 1} et {an}", ha(niveau.loc[an] - niveau.loc[an - 1], signe=True),
+            "dernière année")
 
-moyen = st.session_state["moyen"]
-numero = MOYENS.index(moyen) + 1
-st.divider()
-st.markdown(f"### {numero}. {ACTIONS[moyen]['titre']}")
-
-
-def rubrique(titre, texte):
-    st.markdown(f"**{titre}.** {texte}")
-
-
-# --- 1. Suivre l'objectif en hectares ------------------------------------------------------------------
-def suivre():
-    etat = etat_sorties()
-    ratio = -OFFICIEL["ratio_evol_pct"]
-    conseil = (f"Mesurer l'objectif {a_obj} en hectares, à chaque registre parcellaire, "
-               + (f"et viser un gain de {arrondi_ha(effort)} ha par an pour retrouver le niveau "
-                  f"de {a_ref}." if manque > 0 else "pour garder le niveau atteint."))
-    if 0 <= ratio < SEUIL_RATIO_PCT:
-        conseil += (f" Ne pas s'en remettre au ratio de la PAC : il ne recule que de "
-                    f"{nombre(ratio, 2)} % ({OFFICIEL['date']}), sous son seuil d'alerte de "
-                    f"{SEUIL_RATIO_PCT} %, alors que les hectares baissent de "
-                    f"{pct(-solde / pp0, 1)}.")
-    rubrique("Le conseil", conseil)
-    rubrique("Pourquoi", f"{arrondi_ha(retournees)} ha ont été retournés en culture, une perte "
-             f"certaine ; {arrondi_ha(sorties)} ha sont sortis de la déclaration"
-             + (f", dont {pct(etat['agricole'], 0)} restent des terres agricoles selon la carte "
-                "d'occupation du sol de l'IGN, sans qu'on sache si c'est de l'herbe ou une "
-                "culture" if etat else "")
-             + " : à vérifier avant de les compter (page Où aller voir).")
-    st.caption(f"Pour : {ACTIONS['suivre']['pour']}")
-
+# --- Deux graphiques : le niveau, et le solde de chaque année face à la statistique agricole ------
+gauche, droite = st.columns(2, gap="large")
+with gauche:
     d = obj.rename(columns={"annee": "année", "prairies_ha": "ha"})
     d["prairies"] = d.ha.map(ha)
-    ligne = alt.Chart(d).mark_line(strokeWidth=2, color=ACTIONS["suivre"]["couleur"],
+    ligne = alt.Chart(d).mark_line(strokeWidth=2, color=COULEUR,
                                    point=alt.OverlayMarkDef(size=60)).encode(
         x=alt.X("année:O", title=None, axis=alt.Axis(labelAngle=0)),
         y=alt.Y("ha:Q", title="hectares de prairies déclarées", scale=alt.Scale(zero=False),
                 axis=alt.Axis(labelExpr=AXE_FR)),
         tooltip=[alt.Tooltip("année:O"), alt.Tooltip("prairies:N")])
     cible = alt.Chart(pd.DataFrame({"y": [ref_ha]})).mark_rule(
-        color="#52514e", strokeDash=[4, 3]).encode(y="y:Q")
+        color="#8a897f", strokeDash=[4, 3]).encode(y="y:Q")
     texte = alt.Chart(pd.DataFrame({"y": [ref_ha], "x": [str(a0)]})).mark_text(
-        align="left", dy=-7, fontSize=11, color="#52514e").encode(
+        align="left", dy=-7, fontSize=11, color="#8a897f").encode(
         y="y:Q", x="x:O", text=alt.value(f"niveau de {a_ref}, à retrouver en {a_obj}"))
-    st.altair_chart((ligne + cible + texte).properties(height=260), width="stretch")
-    an_prec = int(niveau.index[niveau.index < an].max()) if (niveau.index < an).any() else a0
-    rubrique("Indicateur de suivi",
-             f"Le solde annuel des prairies déclarées, en hectares : "
-             f"{ha(niveau.loc[an] - niveau.loc[an_prec], signe=True)} entre {an_prec} et {an}.")
+    st.markdown("**Les prairies déclarées, chaque année**")
+    st.altair_chart((ligne + cible + texte).properties(height=280), width="stretch")
+with droite:
+    b = s[["libelle", "solde", "bizarre", "saa_variation"]].copy()
+    b["registre"] = b.solde.map(lambda v: ha(v, signe=True))
+    b["statistique"] = b.saa_variation.map(lambda v: "pas de donnée" if pd.isna(v)
+                                           else ha(v, signe=True))
+    b["etat"] = b.bizarre.map({True: "année bizarre", False: "année ordinaire"})
+    x = alt.X("libelle:N", sort=None, title=None, axis=alt.Axis(labelAngle=-30))
+    barres = alt.Chart(b).mark_bar(cornerRadius=3).encode(
+        x=x, y=alt.Y("solde:Q", title="hectares",
+                     axis=alt.Axis(labelExpr=AXE_FR)),
+        color=alt.Color("etat:N", title=None, legend=alt.Legend(orient="bottom"),
+                        scale=alt.Scale(domain=["année ordinaire", "année bizarre"],
+                                        range=[COULEUR, BIZARRE])),
+        tooltip=[alt.Tooltip("libelle:N", title="année"),
+                 alt.Tooltip("registre:N", title="registre PAC"),
+                 alt.Tooltip("statistique:N", title="statistique agricole")])
+    points = alt.Chart(b.dropna(subset=["saa_variation"])).mark_point(
+        shape="diamond", size=110, filled=True, color="#d6d5cd", stroke="#3a3a36").encode(
+        x=x, y="saa_variation:Q",
+        tooltip=[alt.Tooltip("libelle:N", title="année"),
+                 alt.Tooltip("statistique:N", title="statistique agricole")])
+    st.markdown("**Le solde de chaque année**",
+                help="Barres : le registre PAC. Losanges : la statistique agricole annuelle "
+                     "(Agreste), pour les années où le projet l'a.")
+    st.altair_chart((barres + points).properties(height=280), width="stretch")
 
+# --- Ce qu'on ne sait pas : chaque chiffre non confirmé ou bizarre, dit explicitement ------------
+st.subheader("Ce qu'on ne sait pas")
+doutes = [f"**La référence {a_ref} n'est pas confirmée** par la Région. L'écart de "
+          f"{ha(ecart, signe=True)} en dépend : par rapport à {a0}, il serait de "
+          f"{ha(depuis_a0, signe=True)}."]
+for _, r in bizarres.iterrows():
+    phrase = (f"**{r.libelle} est une année bizarre** : {ha(r.solde, signe=True)} en un an, dont "
+              f"{ha(r.sortie_non_declare)} sortis de la déclaration, "
+              f"{nombre(r.fois, 1)} fois une année ordinaire.")
+    if pd.notna(r.saa_variation) and (r.saa_variation > 0) != (r.solde > 0):
+        phrase += f" La statistique agricole dit l'inverse : {ha(r.saa_variation, signe=True)}."
+    if r.fin == 2023:
+        phrase += (" C'est l'année de la nouvelle PAC (les prairies de longue durée deviennent "
+                   "des prairies permanentes) : explication probable, **non vérifiée**.")
+    if a_ref < r.fin <= an and ecart < 0 and r.solde < 0:
+        phrase += f" Elle pèse {ha(-r.solde)} des {ha(-ecart)} d'écart à l'objectif."
+    doutes.append(phrase)
+doutes.append(f"**{ha(sorties)} sont sortis de la déclaration** depuis {a0} : aucune source du "
+              "projet ne dit si l'herbe est encore là.")
+try:
+    from prairimetre.satellite import PARCELLES_30, lire_observations
+    n_vues = len(lire_observations())
+    doutes[-1] += (f" Vérification par images satellite en cours : {n_vues} "
+                   f"parcelle{'s' if n_vues > 1 else ''} vérifiée{'s' if n_vues > 1 else ''} sur "
+                   f"{len(PARCELLES_30)} (page Où aller voir).")
+except ValueError as erreur:
+    doutes[-1] += f" Le fichier de vérification par images satellite est à corriger : {erreur}."
+ratio = -OFFICIEL["ratio_evol_pct"]
+if 0 <= ratio < SEUIL_RATIO_PCT:
+    doutes.append(f"**Le ratio officiel ne sonne pas** : il ne recule que de {nombre(ratio, 2)} % "
+                  f"({OFFICIEL['date']}), sous son seuil d'alerte de {SEUIL_RATIO_PCT} %, alors que "
+                  f"les prairies déclarées ont perdu {ha(-depuis_a0)} depuis {a0}.")
+debut_saa = int(saa.annee.min()) if saa is not None and len(saa) else None
+ordinaires = s[~s.bizarre].sort_values("solde")
+if debut_saa and len(ordinaires) and ordinaires.iloc[0].fin < debut_saa:
+    r = ordinaires.iloc[0]
+    doutes.append(f"**{r.libelle} est la plus forte baisse ordinaire** ({ha(r.solde, signe=True)})"
+                  f" : la statistique agricole du projet commence en {debut_saa}, on ne peut pas "
+                  "la comparer.")
+with st.container(border=True):
+    st.markdown("\n".join(f"- {d}" for d in doutes))
 
-# --- 2. Payer le maintien --------------------------------------------------------------------------
-CRITERES = {
-    "hectares": ("retourne_recent", f"hectares retournés en culture ({r0}–{an})", False),
-    "taux": ("retournement_recent_taux_annuel",
-             f"part des prairies retournée chaque année ({r0}–{an})", True),
-    "zonages d'enjeux": ("retourne_recent_enjeux",
-                         f"hectares retournés dans un zonage d'enjeux ou une aire de captage "
-                         f"({r0}–{an})", False),
-}
-AIRES = "aires de captage"
-
-
-def payer():
-    sens_regle, v_regle = comparaison("regle")
-    sens_aac, v_aac = comparaison("aires_alimentation_captages")
-    conseil = ("Payer le maintien de l'herbe (mesures agro-environnementales, paiements pour "
-               "services environnementaux) dans les territoires de la liste ci-dessous, qui "
-               f"portent l'essentiel du retournement : la moitié se fait dans {n_moitie} communes "
-               f"sur {nombre(len(calc))}.")
-    if sens_aac in ("autant", "plus"):
-        conseil += (f" Au-dessus des captages d'eau potable, on retourne {sens_aac} qu'ailleurs : "
-                    "les Agences de l'eau ont intérêt à y financer ce maintien (échelle « aires "
-                    "de captage »).")
-    rubrique("Le conseil", conseil)
-    if cl is not None:
-        hors, regle = cl.loc["aucun zonage"], cl.loc["règle"]
-        pourquoi_ = (f"{pct(hors.part_du_retournement, 0)} des retournements ont lieu hors de "
-                     "tout zonage, là où rien n'encadre le labour.")
-        if sens_regle == "moins":
-            pourquoi_ += (f" Là où une règle l'encadre, on retourne environ "
-                          f"{nombre(1 / v_regle.mean(), 0)} fois moins qu'à côté, dans la même "
-                          f"commune ; mais ces règles ne couvrent que "
-                          f"{pct(regle.part_des_prairies, 0)} des prairies.")
-        rubrique("Pourquoi", pourquoi_)
-    st.caption(f"Pour : {ACTIONS['payer']['pour']}")
-
-    f1, f3 = st.columns([3, 2])
-    f2, f4 = st.columns([3, 2])
-    echelle = f1.segmented_control("Échelle", ["communes", "intercommunalités", AIRES],
-                                   default="communes", key="echelle_payer") or "communes"
-    criteres = [c for c in CRITERES if echelle != AIRES or c != "zonages d'enjeux"]
-    critere = f2.segmented_control(
-        "Classer par", criteres, default="hectares", key=f"critere_{echelle}",
-        help="Les hectares font ressortir les grands territoires ; le taux, ceux qui perdent une "
-             f"grande part de leurs prairies (au moins 100 ha en {r0}) ; les zonages d'enjeux, "
-             "les retournements là où l'eau ou la nature sont en jeu.") or "hectares"
-    col, mesure, en_pct = CRITERES[critere]
-    dep = f3.selectbox("Territoire", ["Normandie"] + list(DEPARTEMENTS), key="dep_payer",
-                       format_func=lambda d: DEPARTEMENTS.get(d, d))
-    tailles = [20, 50, 100] if echelle == "communes" else [5, 10, 20]
-    n = f4.segmented_control("Combien", tailles, default=tailles[1], key=f"combien_{echelle}") \
-        or tailles[1]
-    seuil = 100 if en_pct else MIN_HA
-
-    perimetre = calc if dep == "Normandie" else calc[calc.dep == dep]
-    if echelle == AIRES:
-        u = k.rename(columns={"retourne_recent_ha": "retourne_recent"}).copy()
-        u["nom"] = u.nom.map(nom_propre)
-        if dep != "Normandie":  # aires qui ont des prairies dans le département
-            u = u[u.index.isin(cc[cc.insee.str[:2] == dep].aac)]
-    elif echelle == "intercommunalités":
-        somme = ["retourne_recent", "retourne_recent_enjeux", f"pp_{r0}"]
-        u = perimetre.groupby("epci").agg({**{c: "sum" for c in somme}, "epci_nom": "first"})
-        u = u.rename(columns={"epci_nom": "nom"})
-        delta_r = max(an - r0, 1)
-        u["retournement_recent_taux_annuel"] = u.retourne_recent / u[f"pp_{r0}"] / delta_r
-    else:
-        u = perimetre.rename(columns={"nom_officiel": "nom"})
-    if en_pct:
-        u = u[u[f"pp_{r0}"] >= 100]
-    liste = u[u[col] > 0].sort_values(col, ascending=False).head(n)
-    total = u[col].clip(lower=0).sum()
-    de = DE_TERRITOIRE[dep]
-    if en_pct:
-        st.markdown(f"**Où.** Les {len(liste)} {echelle} {de} qui perdent la plus "
-                    f"grande part de leurs prairies : de {pct(liste[col].min(), 1)} à "
-                    f"{pct(liste[col].max(), 1)} par an.")
-    else:
-        st.markdown(f"**Où.** Ces {len(liste)} {echelle} portent "
-                    f"{pct(liste[col].sum() / total, 0)} des {mesure} {de}.")
-    carte_et_liste(echelle, dep, u, liste, col, en_pct, ACTIONS["payer"]["couleur"],
-                   f"non classée : moins de {seuil} ha de prairies, ou aucune", "payer")
-    if echelle == AIRES and len(liste):
-        fiche_captage(liste, u)
-    if cl is not None:
-        rubrique("Indicateur de suivi",
-                 f"La part des prairies hors zonage retournée chaque année : "
-                 f"{pct(cl.loc['aucun zonage', 'taux_annuel'], 1)} sur {a0}–{an}. À comparer, "
-                 "l'an prochain, dans les territoires de la liste et ailleurs.")
-
-
-def fiche_captage(liste, u):
-    """Interlocuteurs de l'aire de captage choisie (liste, ou clic sur la carte)."""
-    options = list(liste.index) + [a for a in u.index if a not in liste.index]
-    if st.session_state.get("aac") not in options:
-        st.session_state["aac"] = options[0]
-    choix = st.selectbox("Aire de captage", options, key="aac",
-                         format_func=lambda a: nom_propre(k.loc[a, "nom"]))
-    r = k.loc[choix]
-    c1, c2, c3 = st.columns(3)
-    c1.metric(f"Prairies dans l'aire en {an}", ha(r[f"pp_{an}"]),
-              f"{pct(r.part_en_prairie, 0)} de sa surface en Normandie",
-              delta_color="off", delta_arrow="off", border=True)
-    c2.metric(f"Retournées en culture, {r0}–{an}", ha(r.retourne_recent_ha),
-              f"{pct(r.retournement_recent_taux_annuel, 1)} des prairies par an"
-              if pd.notna(r.retournement_recent_taux_annuel)
-              else f"moins de 100 ha de prairies en {r0}",
-              delta_color="off", delta_arrow="off", border=True)
-    principales = r.communes_principales if isinstance(r.communes_principales, str) else ""
-    c3.metric("Communes dont les prairies sont dans l'aire",
-              nombre(r.communes) if pd.notna(r.communes) else "aucune en Normandie",
-              principales[:60] or None, delta_color="off", delta_arrow="off", border=True)
-    roles = {"maitre_ouvrage": "maître d'ouvrage du captage", "service_etat": "service de l'État"}
-    contacts = [f"{nom_propre(r[c])} ({role})" for c, role in roles.items()
-                if isinstance(r[c], str)]
-    contacts.append(f"{r.agence_eau}, qui finance les paiements pour services environnementaux")
-    st.markdown("Interlocuteurs : " + " ; ".join(contacts) + ".")
-    absents = [role for c, role in roles.items() if not isinstance(r[c], str)]
-    if absents:
-        texte = " et ".join(absents)
-        st.caption(f"{texte[0].upper()}{texte[1:]} : non renseigné par le Sandre.")
-
-
-# --- 3. S'appuyer sur les exemples ------------------------------------------------------------------
-def exemple():
-    epci = calc.groupby("epci").agg(nom=("epci_nom", "first"), perte=("retourne_recent", "sum"))
-    epci = epci.sort_values("perte", ascending=False)
-    paires = []
-    for e, row in epci.head(5).iterrows():
-        ici = exemples[exemples.epci == e].sort_values(f"pp_{an}", ascending=False)
-        paires.append(f"- **{row.nom}** ({ha(row.perte)} retournés sur {r0}–{an}) : "
-                      + (f"{len(ici)} commune{'s' if len(ici) > 1 else ''} sans perte nette, "
-                         f"dont {', '.join(ici.nom_officiel.head(3))}." if len(ici) else
-                         "aucune commune sans perte nette ; chercher dans les intercommunalités "
-                         "voisines."))
-    rubrique("Le conseil", "Faire témoigner les éleveurs des communes qui gardent leurs prairies "
-             "dans les intercommunalités qui en retournent le plus. Pour les cinq premières :")
-    st.markdown("\n".join(paires))
-    rubrique("Pourquoi", f"{nombre(len(exemples))} communes sur {nombre(len(calc))} n'ont pas "
-             f"perdu de prairies depuis {a0}. Leurs éleveurs montrent, au plus près, qu'on peut "
-             "garder l'herbe dans les mêmes conditions de sol et de marché.")
-    st.caption(f"Pour : {ACTIONS['exemple']['pour']}")
-
-    f1, f2, f3 = st.columns([3, 2, 2])
-    echelle = f1.segmented_control("Échelle", ["communes", "intercommunalités"],
-                                   default="communes", key="echelle_exemple") or "communes"
-    dep = f2.selectbox("Territoire", ["Normandie"] + list(DEPARTEMENTS), key="dep_exemple",
-                       format_func=lambda d: DEPARTEMENTS.get(d, d))
-    tailles = [20, 50, 100] if echelle == "communes" else [5, 10, 20]
-    n = f3.segmented_control("Combien", tailles, default=tailles[1],
-                             key=f"combien_ex_{echelle}") or tailles[1]
-    perimetre = calc if dep == "Normandie" else calc[calc.dep == dep]
-    col = f"pp_{an}"
-    if echelle == "intercommunalités":
-        u = perimetre.groupby("epci").agg(nom=("epci_nom", "first"), solde=("solde", "sum"),
-                                          **{col: (col, "sum")})
-    else:
-        u = perimetre.rename(columns={"nom_officiel": "nom"})
-    exemplaires = u[u.solde >= 0]
-    liste = exemplaires.sort_values(col, ascending=False).head(n)
-    de = DE_TERRITOIRE[dep]
-    if exemplaires.empty:
-        st.markdown(f"**Où.** Aucune des {nombre(len(u))} {echelle} {de} n'a gardé toutes ses "
-                    f"prairies depuis {a0} : les exemples sont à chercher à l'échelle des "
-                    "communes.")
-    else:
-        st.markdown(f"**Où.** {nombre(len(exemplaires))} {echelle} {de} sur {nombre(len(u))} "
-                    f"n'ont pas perdu de prairies depuis {a0}. Les {len(liste)} qui en gardent "
-                    f"le plus en totalisent {ha(liste[col].sum())}.")
-    carte_et_liste(echelle, dep, u, liste, col, False, ACTIONS["exemple"]["couleur"],
-                   f"non classée : moins de {MIN_HA} ha de prairies, ou aucune", "exemple",
-                   hors=f"perd des prairies depuis {a0}")
-    rubrique("Indicateur de suivi", f"Le nombre de communes sans perte nette : "
-             f"{nombre(len(exemples))} sur {nombre(len(calc))} entre {a0} et {an}.")
-
-
-# --- Carte et liste, communes aux deux derniers moyens ----------------------------------------------
-def carte_et_liste(echelle, dep, u, liste, col, en_pct, couleur, sans_donnee, cle_vue,
-                   hors="hors de la liste"):
+# --- Ce qui retient les prairies : la règle, mesurée ---------------------------------------------
+if cl is not None:
+    st.subheader("Ce qui retient les prairies")
+    sens, rapports = comparaison("regle")
+    sens_aac, _ = comparaison("aires_alimentation_captages")
+    regle, hors = cl.loc["règle"], cl.loc["aucun zonage"]
+    if sens == "moins":
+        st.markdown(f"#### Là où une règle encadre le labour, on retourne environ "
+                    f"{nombre(1 / rapports.mean(), 0)} fois moins qu'à côté, dans la même commune.")
     gauche, droite = st.columns([3, 2], gap="large")
-    rangs = {i: r + 1 for r, i in enumerate(liste.index)}
     with gauche:
-        if echelle == AIRES:
-            g, cle, couche = captages_carte(), "aac", "captages"
-            g = g[g.aac.isin(u.index)].copy()
-        elif echelle == "intercommunalités":
-            g, cle, couche = epci_carte(), "epci", "epci"
-            g = g[g.epci.isin(u.index)].copy()
-        else:
-            g, cle, couche = communes_carte(), "insee", "communes"
-            g = (g if dep == "Normandie" else g[g.dep == dep]).copy()
-        noms = u.nom if "nom" in u else pd.Series(dtype=str)
-        g["nom"] = g[cle].map(noms).fillna(g[cle].map(t.nom_officiel) if cle == "insee"
-                                           else g[cle])
-        g["couleur"] = couleurs_liste(g[cle], rangs, set(u.index), couleur)
-        g["valeur"] = g[cle].map(u[col]).map(
-            lambda v: "pas de diagnostic" if pd.isna(v) else pct(v, 1) if en_pct else ha(v))
-        g["rang"] = g[cle].map(lambda i: f"n° {rangs[i]} de la liste" if i in rangs
-                               else hors if i in u.index else sans_donnee)
-        evt = st.pydeck_chart(
-            deck([(g[[cle, "nom", "couleur", "valeur", "rang", "geometry"]], couche)], g,
-                 "<b>{nom}</b><br/>{valeur}<br/>{rang}"),
-            on_select="rerun", selection_mode="single-object", width="stretch",
-            key=f"carte_{cle_vue}_{echelle}")
-        elements = [(couleur, "dans la liste"), (HORS, hors)]
-        if (~g[cle].isin(u.index)).any():
-            elements.append((GRIS, sans_donnee))
-        legende(elements)
-        clic = selection_carte(evt, couche, cle)
-        # Un clic ne compte qu'une fois : la sélection de la carte persiste d'un rechargement à
-        # l'autre, et ne doit pas écraser un choix fait ensuite dans la liste déroulante.
-        if clic and clic != st.session_state.get(f"_clic_{cle_vue}_{echelle}"):
-            st.session_state[f"_clic_{cle_vue}_{echelle}"] = clic
-            if echelle == "communes":
-                st.session_state["commune"] = clic
-                st.switch_page("vues/commune.py")
-            elif echelle == AIRES:
-                st.session_state["aac"] = clic
+        noms = {"règle": "sous une règle qui encadre le labour", "site protégé": "site protégé",
+                "inventaire seul": "inventaire seul (sans effet sur le labour)",
+                "aucun zonage": "aucun zonage"}
+        # Sur 1 000 ha plutôt que 100 : des nombres entiers lisibles (15, 107), sans pourcentage
+        st.altair_chart(classement([noms.get(i, i) for i in cl.index], 1000 * cl.retourne / cl.ha,
+                                   COULEUR, f"hectares retournés en culture depuis {a0}, sur "
+                                            f"1 000 ha de prairies de {a0}"), width="stretch")
     with droite:
-        tete = liste.head(15)
-        st.markdown(f"Les {len(tete)} premières")
-        st.altair_chart(classement(tete.nom, tete[col], couleur,
-                                   "part par an" if en_pct else "hectares", en_pct=en_pct),
-                        width="stretch")
-        st.caption({"communes": "Un clic sur une commune de la carte ouvre sa fiche.",
-                    AIRES: "Un clic sur une aire de la carte affiche ses interlocuteurs "
-                           "ci-dessous. Seule la partie normande des aires est comptée."
-                    }.get(echelle, ""))
-        export = pd.DataFrame({"rang": range(1, len(liste) + 1), "nom": liste.nom.values,
-                               col: liste[col].round(4 if en_pct else 0).values})
-        if echelle == "communes":
-            export.insert(2, "intercommunalite", liste.epci_nom.values)
-        if echelle == AIRES:
-            export.insert(2, "premier_contact", [contact_captage(k.loc[a]) for a in liste.index])
-        st.download_button(f"Télécharger la liste ({len(liste)} {echelle}, CSV)",
-                           export.to_csv(sep=";", decimal=",", index=False).encode("utf-8-sig"),
-                           f"prairimetre_{cle_vue}_{col}_{echelle.replace(' ', '_')}.csv",
-                           "text/csv", icon=":material/download:", key=f"dl_{cle_vue}")
+        chiffre(st, "Prairies sous une règle", f"{nombre(100 * regle.part_des_prairies, 0)} ha sur 100",
+                "BCAE 9, BCAE 2, programme nitrates")
+        chiffre(st, "Retournement hors de tout zonage",
+                f"{nombre(100 * hors.part_du_retournement, 0)} ha sur 100", f"depuis {a0}")
+    limites = ["**C'est une comparaison, pas une preuve de cause** : les règles portent sur des "
+               "terrains humides ou fragiles, moins faciles à labourer de toute façon. Comparer dans "
+               "la même commune enlève l'effet de la commune, pas celui du sol.",
+               "Le projet n'a **aucune donnée sur les paiements** (mesures agro-environnementales) : "
+               "il ne dit pas si payer retient l'herbe."]
+    if len(rapports) > 1:
+        limites.insert(0, f"Selon la période, on retourne de {nombre(1 / rapports.max(), 1)} à "
+                          f"{nombre(1 / rapports.min(), 1)} fois moins sous une règle : le résultat "
+                          "est solide.")
+    if sens_aac == "autant":
+        limites.append("Au-dessus des captages d'eau potable, on retourne autant qu'à côté.")
+    st.markdown("\n".join(f"- {x}" for x in limites))
 
-
-AFFICHER = {"suivre": suivre, "payer": payer, "exemple": exemple}
-AFFICHER[moyen]()
+st.markdown("**À suivre à chaque nouveau registre** : le solde de l'année en hectares, et la part "
+            "retournée sous une règle et hors de tout zonage.")
 
 with st.expander("Pourquoi les prairies comptent"):
     pourquoi()

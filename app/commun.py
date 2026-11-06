@@ -47,12 +47,13 @@ GRIS = "#6b6a65"     # pas de diagnostic : peu ou pas de prairies (villes, zones
 FLUX_COULEURS = {"culture": "#c2452d", "non déclaré": "#f0a202", "prairie temporaire": "#2a78d6",
                  "prairie permanente": "#2e7d4f", "autre": "#5b5a55", "ajoutée": "#8a4fc4"}
 
-# Les trois moyens d'agir (page Où agir) et la vérification (page Où aller voir). Une
-# commune relève de l'un d'eux selon le mécanisme dominant de ses pertes, calculé par le moteur.
+# Les noms et couleurs partagés par les pages : l'objectif 2030, la liste des communes qui portent
+# la moitié du retournement récent (utilisée par Où aller voir), la vérification. Une commune
+# relève de l'un d'eux selon le mécanisme dominant de ses pertes, calculé par le moteur.
 ACTIONS = {
     "suivre": {"titre": "Suivre l'objectif en hectares", "couleur": CAT[0],
                "pour": "la Région, les DDT(M)"},
-    "payer": {"titre": "Payer le maintien des prairies", "couleur": CAT[0],
+    "payer": {"titre": "Communes où l'on retourne le plus", "couleur": CAT[0],
               "pour": "la Région, la chambre d'agriculture, les Agences de l'eau, les "
                       "intercommunalités",
               "mecanisme": "retournement"},
