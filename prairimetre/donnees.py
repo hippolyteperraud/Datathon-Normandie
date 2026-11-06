@@ -143,23 +143,6 @@ def saa():
     return t.rename(columns={"geocode_departement": "dep"})[["annee", "dep", "niveau"]]
 
 
-def enaf():
-    """Consommation d'espaces NAF (Cerema), clé 'insee'."""
-    e = pd.read_csv(DATA / SOURCES["conso_enaf"]["fichier"], dtype={"idcom": str})
-    e["insee"] = code5(e["idcom"])
-    return e
-
-
-def lucas():
-    """Points LUCAS 2022 ; prairie_terrain = couverture observée commençant par E."""
-    def f():
-        g = lire(DATA / SOURCES["lucas"]["fichier"],
-                 columns=["point_id", "survey_lc1", "survey_lu1", "survey_grazing"])
-        g["prairie_terrain"] = g["survey_lc1"].astype(str).str.startswith("E")
-        return g
-    return en_cache("lucas", f)
-
-
 def ocsge(dep, millesime):
     """OCS GE d'un département (couverture et usage)."""
     return en_cache(f"ocsge_{dep}_{millesime}",

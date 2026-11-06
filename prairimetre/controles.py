@@ -7,7 +7,7 @@
 import pyogrio
 
 from .config import DATA, DEPARTEMENTS, annees
-from .donnees import communes, enaf, lucas
+from .donnees import communes
 from .sources import SOURCES
 
 REFERENCES = {  # surfaces groupe 18 (ha) et nombre de parcelles, document du 22/10/2026
@@ -79,11 +79,5 @@ def controler(seulement=None):
         r("communes : toutes en Normandie", c.dep.isin(DEPARTEMENTS).all(),
           ", ".join(sorted(set(c.dep) - set(DEPARTEMENTS))))
         r("communes : nombre plausible", 2000 <= len(c) <= 3500, f"{len(c):,}")
-        e = enaf()
-        r("Cerema : toutes les communes retrouvées", c.insee.isin(e.insee).all(),
-          f"{int((~c.insee.isin(e.insee)).sum())} manquantes")
-        l = lucas()
-        part = l.prairie_terrain.mean()
-        r("LUCAS : part de points en prairie plausible", 0.2 <= part <= 0.6, f"{part:.0%}")
     print(f"\n{r.ecarts} écart(s) sur {len(r.lignes)} contrôles")
     return r

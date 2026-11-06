@@ -8,7 +8,7 @@ Sorties (dossier sorties/) :
 - evaluation_classes.csv : répartition des prairies et du retournement entre règles, sites
   protégés, inventaires et « rien » (classes exclusives) ;
 - evaluation_concentration.csv, evaluation_prediction.csv, evaluation_sensibilite.csv ;
-- evaluation_certitude.csv : état du sol (OCS GE, LUCAS) des prairies sorties ou retournées ;
+- evaluation_certitude.csv : état du sol (OCS GE) des prairies sorties de la déclaration ;
 - evaluation_saa.csv : RPG comparé à la statistique agricole annuelle (source indépendante) ;
 - evaluation_habitats.csv : habitats prairiaux d'intérêt européen (biodiversité) ;
 - evaluation_moteurs.csv : retournement selon la progression du maïs dans la commune.
@@ -19,8 +19,7 @@ import numpy as np
 import pandas as pd
 
 from .config import DATA, MIN_HA, RECENT, SORTIES, annees
-from .donnees import FAMILLES, HABITATS_PRAIRIAUX, ZONAGES, habitats_prairiaux, lucas, ocsge, \
-    prairies, saa
+from .donnees import FAMILLES, HABITATS_PRAIRIAUX, ZONAGES, habitats_prairiaux, ocsge, prairies, saa
 from .indicateurs import normandie, periodes, serie, zonages_annee
 from .suivi import croiser, devenir
 
@@ -172,7 +171,7 @@ def etat_ocsge(cs, us):
 
 def certitude(seuil=0.5):
     """Prairies sorties de la déclaration (et témoin : restées prairies) vues par l'OCS GE
-    l'année même ; puis points d'enquête LUCAS 2022 dans les prairies sorties ou retournées."""
+    l'année même."""
     A = annees()
     millesimes = json.loads((DATA / "manifest.json").read_text(encoding="utf-8"))["ocsge"]["millesimes"]
     lignes = []
@@ -191,16 +190,6 @@ def certitude(seuil=0.5):
             parts = r.drop(columns="ha").sum() / r.ha.sum()
             lignes.append({"source": f"OCS GE {m}", "dep": dep, "groupe": groupe,
                            "prairies": int(sel.sum()), "ha": r.ha.sum(), **parts.to_dict()})
-    if 2021 in A and 2022 in A:
-        d, p, l = devenir(2021, 2022), prairies(2021), lucas()
-        for groupe, col in [("sorties de la déclaration", "non déclaré"),
-                            ("retournées en culture", "culture"),
-                            ("témoin : restées prairies", "prairie permanente")]:
-            j = l.sjoin(p.loc[(d[col] > 0.8 * d.ha).values, ["geometry"]], predicate="within")
-            obs = j.survey_lc1.astype(str).str[0].map(
-                {"E": "herbe", "B": "culture", "C": "ligneux", "A": "artificialisé"}).fillna("autre")
-            lignes.append({"source": "LUCAS 2022", "dep": "région", "groupe": groupe,
-                           "prairies": len(j), **obs.value_counts(normalize=True).to_dict()})
     return pd.DataFrame(lignes)
 
 

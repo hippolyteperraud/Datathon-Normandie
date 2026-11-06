@@ -94,4 +94,4 @@ def signature():
     st.divider()
     st.caption("Prairimètre, Datathon Normandie 2026, par Hippolyte Perraud (INSA Rouen) et "
                "Mouhssine Bairoune (ENSI Caen). Données ouvertes : IGN, ASP, Agreste, Sandre, "
-               "DREAL Normandie, MNHN, Cerema, Eurostat.")
+               "DREAL Normandie, MNHN.")

@@ -187,21 +187,55 @@ def exiger_sorties():
     m = manquantes()
     if m:
         st.warning("Les résultats du moteur sont incomplets (manquent : " + ", ".join(m)
-                   + "). Lancez « Recalculer les résultats » dans Données et méthode → Moteur.")
-        st.page_link("vues/methode.py", label="Données et méthode", icon=":material/settings:")
+                   + "). Lancez « Relancer les calculs » dans Technique → Recalculer.")
+        st.page_link("vues/technique.py", label="Technique", icon=":material/build:")
         st.stop()
     A, an = annees(), bornes()[1]
     if A and A[-1] > an:
         st.warning(f"Le registre {A[-1]} est téléchargé, mais les résultats s'arrêtent à {an}. "
-                   "Lancez « Recalculer les résultats » dans Données et méthode → Moteur.")
+                   "Lancez « Relancer les calculs » dans Technique → Recalculer.")
 
 
-def a_recalculer():
-    """Vrai si les résultats manquent, s'arrêtent avant le dernier registre en local, ou si
-    l'évaluation n'a pas tourné : seul cas où l'onglet Moteur propose de recalculer."""
-    A = annees()
-    return bool(manquantes()) or bool(A and A[-1] > bornes()[1]) \
-        or not (SORTIES / "evaluation_certitude.csv").exists()
+def aides_chiffres():
+    """Ce que compte chacun des trois chiffres de la Normandie (bande du haut, page Technique)."""
+    return {"Prairimètre": "prairies permanentes déclarées à la PAC (RPG, groupe 18) : les PPH et, "
+                           "jusqu'en 2022, les PRL, devenues PPH à 94 % en 2023.",
+            "Chiffre officiel": f"prairies permanentes au sens réglementaire de la PAC. "
+                                f"{OFFICIEL['source']}.",
+            "Ratio officiel": f"part des prairies dans la surface agricole. Au-delà de "
+                              f"{SEUIL_RATIO_PCT} % de baisse, les retournements sont soumis à "
+                              "autorisation."}
+
+
+def chiffres_normandie():
+    """Les trois chiffres de la région, sur toutes les pages, au même niveau que le menu. Sur un écran
+    trop étroit pour les deux, ils passent sous le menu. Rien tant que le moteur n'a pas produit ses
+    résultats."""
+    if manquantes():
+        return
+    a0, an = bornes()
+    bil = table("bilan_direct").loc["région"]
+    solde = bil[("nouvelles_venant_de", "arrivee")] - bil[("disparues_devenues", "depart")]
+    aides = aides_chiffres()
+    cases = [(ha(solde, signe=True), f"Prairimètre, {a0}→{an}", aides["Prairimètre"]),
+             (ha(OFFICIEL["perte_ha"], signe=True), "Chiffre officiel", aides["Chiffre officiel"]),
+             (f"{nombre(OFFICIEL['ratio_evol_pct'], 2)} %", "Ratio officiel", aides["Ratio officiel"])]
+    st.markdown(
+        "<style>"
+        ".chiffres-normandie {display:flex;align-items:center;gap:1.4rem;position:fixed;top:0;"
+        "right:3.2rem;height:3.75rem;z-index:999999}"
+        ".chiffres-normandie .case {display:flex;flex-direction:column;line-height:1.15}"
+        ".chiffres-normandie .valeur {font-size:1.15rem;font-weight:700;white-space:nowrap}"
+        ".chiffres-normandie .nom {font-size:0.7rem;opacity:0.75;white-space:nowrap}"
+        ".chiffres-normandie .region {font-size:0.68rem;font-weight:600;letter-spacing:0.04em;"
+        "opacity:0.7}"
+        "@media (max-width:1240px) {.chiffres-normandie {position:static;height:auto;flex-wrap:wrap;"
+        "margin-bottom:1rem}}"
+        "</style>"
+        '<div class="chiffres-normandie"><span class="region">NORMANDIE</span>'
+        + "".join(f'<span class="case" title="{aide}"><span class="valeur">{valeur}</span>'
+                  f'<span class="nom">{nom}</span></span>' for valeur, nom, aide in cases)
+        + "</div>", unsafe_allow_html=True)
 
 
 def communes_moitie(t):

@@ -60,15 +60,7 @@ def _lire(chemin, nom):
     if chemin.suffix.lower() == ".csv":
         t = pd.read_csv(chemin, sep=None, engine="python", dtype=str)
         t.columns = [c.lower().strip() for c in t.columns]
-        # Eurostat écrit « E10 » avec un espace devant : sans ce nettoyage, aucune prairie LUCAS
-        # ne serait reconnue (le moteur teste la première lettre du code)
-        t = t.apply(lambda c: c.str.strip())
-        if {"point_lat", "point_long"} <= set(t.columns):  # points d'enquête (LUCAS)
-            xy = t[["point_long", "point_lat"]].apply(pd.to_numeric, errors="coerce")
-            t = gpd.GeoDataFrame(t, geometry=gpd.points_from_xy(xy.point_long, xy.point_lat),
-                                 crs=4326)
-            return t[xy.notna().all(axis=1).values].to_crs(2154)
-        return t
+        return t.apply(lambda c: c.str.strip())
     couches = [c for c, _ in pyogrio.list_layers(chemin)]
     motif = INDICES.get(nom)
     couche = next((c for c in couches if motif and re.search(motif, c)), couches[0])
@@ -105,12 +97,8 @@ def _recadrer(t, nom, annee):
     """Garde la Normandie (les fichiers nationaux sont acceptés)."""
     if nom == "communes":
         return t[t.code_insee.astype(str).str.zfill(5).str[:2].isin(DEPARTEMENTS)]
-    if nom == "conso_enaf":
-        return t[t.idcom.astype(str).str.zfill(5).str[:2].isin(DEPARTEMENTS)]
     if nom == "saa_prairies":
         return t[t.geocode_departement.astype(str).str.zfill(2).isin(DEPARTEMENTS)]
-    if nom == "lucas" and "point_nuts2" in t:  # région officielle (NUTS), littoral compris
-        return t[t.point_nuts2.isin(["FRD1", "FRD2"])]
     if nom == "rpg":
         return normaliser_rpg(t.drop(columns="annee", errors="ignore"), annee)
     if nom == "pp_officiel":

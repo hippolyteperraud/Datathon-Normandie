@@ -5,7 +5,7 @@ Les trois commandes du quotidien :
     mettre-a-jour [--annee A]     nouveau RPG : télécharger, contrôler, recalculer, évaluer
                                   (sans --annee : le dernier millésime publié par l'IGN ;
                                   --avec-officielle : + couche officielle, très lente)
-    importer SOURCE FICHIER       un fichier téléchargé à la main (communes, OCS GE, Cerema...)
+    importer SOURCE FICHIER       un fichier téléchargé à la main (communes, OCS GE...)
                                   [--annee A] [--dep 14 --millesime 2026]
 
 Les commandes détaillées :

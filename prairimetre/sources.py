@@ -16,13 +16,16 @@ WFS_SANDRE = "https://services.sandre.eaufrance.fr/geo/zgr"
 PATRINAT = "MNHN / PatriNat"
 DREAL = "DREAL Normandie"
 LO = "Licence Ouverte 2.0"
-DATA_GOUV_DREAL = ("https://www.data.gouv.fr/organizations/direction-regionale-de-lenvironnement-"
-                   "de-lamenagement-et-du-logement-de-normandie/")
+# Pages lisibles des flux WFS (l'adresse d'un flux, elle, renvoie une erreur dans un navigateur)
+PAGE_RPG = "https://geoservices.ign.fr/rpg"
+PAGE_BCAE = "https://cartes.gouv.fr/rechercher-une-donnee/dataset/IGNF_BCAE"
+PAGE_INPN = "https://inpn.mnhn.fr/referentiels-donnees"
+DATA_GOUV = "https://www.data.gouv.fr/datasets/"
 
 
-def _wfs(fichier, couche, producteur, url=WFS_IGN, annuelle=False, colonnes=()):
+def _wfs(fichier, couche, producteur, lien, url=WFS_IGN, annuelle=False, colonnes=()):
     return dict(mode="wfs", fichier=fichier, couche=couche, url=url, producteur=producteur,
-                licence=LO, page=f"{url} (couche {couche})", annuelle=annuelle,
+                licence=LO, page=f"{url} (couche {couche})", lien=lien, annuelle=annuelle,
                 colonnes=list(colonnes))
 
 
@@ -39,29 +42,32 @@ SOURCES = {
         membre=r"(?i)(rpg_parcelles|parcelles_graphiques)\.(gpkg|shp|shx|dbf|prj|cpg)$",
         secours="RPG.{annee}:parcelles_graphiques",  # WFS si l'archive n'est pas encore publiée
         fichier="rpg/rpg_{annee}.gpkg", producteur="IGN / ASP", licence=LO,
-        page="https://geoservices.ign.fr/rpg", annuelle=True,
+        page=PAGE_RPG, annuelle=True,
         colonnes=["id_parcel", "surf_parc", "code_cultu", "code_group"]),
     "pp_officiel": _wfs(
         "certitude/prairies_permanentes_officielles_{annee}.gpkg",
         r"IGNF_RPG_PRAIRIES-PERMANENTES_{annee}:\w+",  # nom de couche variable : cherché dans le catalogue
-        "IGN / ASP", annuelle=True, colonnes=["num_parcel", "surf_parc"]),
+        "IGN / ASP", PAGE_RPG, annuelle=True, colonnes=["num_parcel", "surf_parc"]),
 
     # --- Zonages de priorité (WFS) : à rafraîchir de temps en temps -------------------------
     "prairies_sensibles": _wfs("priorite/prairies_sensibles.gpkg",
-                               "PRAIRIES.SENSIBLES.BCAE:prairies_sensibles", "MASA / IGN"),
+                               "PRAIRIES.SENSIBLES.BCAE:prairies_sensibles", "MASA / IGN", PAGE_BCAE),
     "bcae_zones_humides_tourbieres": _wfs("priorite/bcae_zones_humides_tourbieres.gpkg",
-                                          "TOURBIERES_ZONES-HUMIDES.BCAE:bcae", "MASA / IGN"),
-    "natura2000_sic": _wfs("priorite/natura2000_sic.gpkg", "patrinat_sic:sic", PATRINAT),
-    "natura2000_zps": _wfs("priorite/natura2000_zps.gpkg", "patrinat_zps:zps", PATRINAT),
-    "pnr": _wfs("priorite/pnr.gpkg", "patrinat_pnr:pnr", PATRINAT, colonnes=["nom_site"]),
-    "rnn": _wfs("priorite/rnn.gpkg", "patrinat_rnn:rnn", PATRINAT),
-    "rnr": _wfs("priorite/rnr.gpkg", "patrinat_rnr:rnr", PATRINAT),
-    "cen": _wfs("priorite/cen.gpkg", "patrinat_cen:cen", PATRINAT),
-    "apb": _wfs("priorite/apb.gpkg", "patrinat_apb:apb", PATRINAT),
+                                          "TOURBIERES_ZONES-HUMIDES.BCAE:bcae", "MASA / IGN",
+                                          PAGE_BCAE),
+    "natura2000_sic": _wfs("priorite/natura2000_sic.gpkg", "patrinat_sic:sic", PATRINAT, PAGE_INPN),
+    "natura2000_zps": _wfs("priorite/natura2000_zps.gpkg", "patrinat_zps:zps", PATRINAT, PAGE_INPN),
+    "pnr": _wfs("priorite/pnr.gpkg", "patrinat_pnr:pnr", PATRINAT, PAGE_INPN, colonnes=["nom_site"]),
+    "rnn": _wfs("priorite/rnn.gpkg", "patrinat_rnn:rnn", PATRINAT, PAGE_INPN),
+    "rnr": _wfs("priorite/rnr.gpkg", "patrinat_rnr:rnr", PATRINAT, PAGE_INPN),
+    "cen": _wfs("priorite/cen.gpkg", "patrinat_cen:cen", PATRINAT, PAGE_INPN),
+    "apb": _wfs("priorite/apb.gpkg", "patrinat_apb:apb", PATRINAT, PAGE_INPN),
     "plu_zonage": _wfs("priorite/plu_zonage.gpkg", "wfs_du:zone_urba",
-                       "DGALN / IGN (Géoportail de l'urbanisme)", colonnes=["typezone"]),
+                       "DGALN / IGN (Géoportail de l'urbanisme)",
+                       "https://www.geoportail-urbanisme.gouv.fr/", colonnes=["typezone"]),
     "aires_alimentation_captages": _wfs(
-        "priorite/aires_alimentation_captages.gpkg", "sa:AAC_FXX", "Sandre", url=WFS_SANDRE,
+        "priorite/aires_alimentation_captages.gpkg", "sa:AAC_FXX", "Sandre",
+        DATA_GOUV + "aires-dalimentation-de-captages-france-entiere-1", url=WFS_SANDRE,
         colonnes=["cdaac", "nomdeaacadministratif", "commandaac", "adminaac", "ptp",
                   "nomcircadminbassin"]),
 
@@ -86,13 +92,6 @@ SOURCES = {
     "ocsge": _manuel("ocsge/ocsge_{dep}_{millesime}.gpkg", "IGN (OCS GE)",
                      "https://data.geopf.fr/telechargement/resource/OCSGE",
                      colonnes=["code_cs", "code_us"]),
-    "conso_enaf": _manuel("devenir/conso_enaf.csv", "Cerema",
-                          "https://www.data.gouv.fr/datasets/6a01b9280dd2d45907e5fc61",
-                          colonnes=["idcom"]),
-    "lucas": _manuel("certitude/lucas_2022.gpkg", "Eurostat",
-                     "https://ec.europa.eu/eurostat/web/lucas/database/2022",
-                     colonnes=["point_id", "survey_lc1"],
-                     licence="Eurostat, réutilisation libre avec citation"),
     "saa_prairies": _manuel(
         "certitude/saa_evolution_prairies.csv", "Agreste (statistique agricole annuelle)",
         "https://www.data.gouv.fr/datasets/pourcentage-devolution-annuelle-de-la-surface-en-"
@@ -104,10 +103,13 @@ SOURCES = {
         "https://www.data.gouv.fr/datasets/carte-de-synthese-des-habitats-dans-les-sites-"
         "natura-2000-de-normandie-occidentale-14-50-61-version-20260325",
         colonnes=["nat2000", "etatcons"]),
-    "zones_humides_dreal": _manuel("priorite/zones_humides_dreal.gpkg", DREAL, DATA_GOUV_DREAL),
-    "par7_zones_humides_est": _manuel("priorite/par7_zones_humides_est.gpkg", DREAL,
-                                      DATA_GOUV_DREAL),
-    "srce_reservoirs": _manuel("priorite/srce_reservoirs.gpkg", DREAL, DATA_GOUV_DREAL),
+    "zones_humides_dreal": _manuel("priorite/zones_humides_dreal.gpkg", DREAL,
+                                   DATA_GOUV + "zones-humides-normandie"),
+    "par7_zones_humides_est": _manuel(
+        "priorite/par7_zones_humides_est.gpkg", DREAL,
+        DATA_GOUV + "zones-humides-des-petites-regions-agricoles-est-7par-normandie-1"),
+    "srce_reservoirs": _manuel("priorite/srce_reservoirs.gpkg", DREAL,
+                               DATA_GOUV + "srce-reservoirs-de-biodiversite-normandie"),
     "znieff1": _manuel(
         "priorite/znieff1.gpkg", DREAL,
         "https://www.data.gouv.fr/datasets/zones-naturelles-dinteret-ecologique-"

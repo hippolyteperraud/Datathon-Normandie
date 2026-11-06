@@ -2,16 +2,16 @@
 
     python importer_donnees.py                    # tout (≈ 6,7 Go ; plusieurs heures la 1re fois)
     python importer_donnees.py --liste            # quoi, d'où, vers où, sans rien télécharger
-    python importer_donnees.py --seulement lucas znieff1
+    python importer_donnees.py --seulement znieff1
     python importer_donnees.py --avec-officielle  # + couche officielle des prairies (≈ 6 h de plus)
     python importer_donnees.py --puis-calculer    # enchaîne le calcul des indicateurs
 
 Chaque source est trouvée à sa source officielle (service de téléchargement de l'IGN, API de
-data.gouv.fr, Eurostat), téléchargée, recadrée sur la Normandie, vérifiée (colonnes attendues),
+data.gouv.fr), téléchargée, recadrée sur la Normandie, vérifiée (colonnes attendues),
 puis rangée dans data/ et tracée dans data/manifest.json (date, empreinte). Une source en panne
 n'arrête pas les autres : son fichier actuel est conservé et le bilan final le dit.
 
-Toutes les données sont ouvertes (Licence Ouverte 2.0 ; LUCAS : Eurostat, réutilisation libre).
+Toutes les données sont ouvertes (Licence Ouverte 2.0).
 Le traitement lui-même est celui du moteur (paquet prairimetre/) : ce fichier ne fait que dire
 où trouver chaque donnée.
 """
@@ -29,7 +29,6 @@ from prairimetre.telecharger import (ATOM_IGN, _get, _telecharger, annees_publie
                                      nettoyer_tmp, telecharger)
 
 DATAGOUV = "https://www.data.gouv.fr/api/1/datasets"
-EUROSTAT_LUCAS = "https://ec.europa.eu/eurostat/web/lucas/database/2022"
 DEPARTEMENTS = config.DEPARTEMENTS
 
 
@@ -69,24 +68,13 @@ def archive_atom(r):
     return "atomArchive" in r["url"]
 
 
-def lucas_france():
-    r = _get(EUROSTAT_LUCAS).text
-    lien = re.search(r'href="([^"]*FR_LUCAS_2022\.csv[^"]*)"', r)
-    if not lien:
-        raise RuntimeError("fichier FR_LUCAS_2022.csv introuvable sur la page Eurostat")
-    return "https://ec.europa.eu" + lien.group(1) if lien.group(1).startswith("/") else lien.group(1)
-
-
 # Sources téléchargées par un fichier puis importées : nom -> (fonction qui donne l'adresse,
 # extension du fichier téléchargé). L'ordre compte : les communes servent à recadrer le reste.
 FICHIERS = {
     "communes": (lambda: archive_ign("ADMIN-EXPRESS-COG", r"GPKG_LAMB93_FXX_\d{4}")[0], ".7z"),
-    "conso_enaf": (lambda: ressource_datagouv("6a01b9280dd2d45907e5fc61",
-                                              lambda r: r["title"] == "conso_com.csv"), ".csv"),
     "saa_prairies": (lambda: ressource_datagouv(
         "pourcentage-devolution-annuelle-de-la-surface-en-prairie-permanente-et-temporaire",
         lambda r: "departement" in r["title"].lower()), ".csv"),
-    "lucas": (lucas_france, ".csv"),
     "znieff1": (lambda: ressource_datagouv(
         "zones-naturelles-dinteret-ecologique-faunistique-et-floristique-de-type-1-de-normandie",
         archive_atom), ".zip"),
@@ -154,8 +142,7 @@ def lister():
         acces = ("archives IGN, une par année" if nom == "rpg" else
                  "archives IGN, une par département" if nom == "ocsge" else
                  "archive IGN" if nom == "communes" else
-                 "fichier data.gouv.fr" if nom in FICHIERS and nom != "lucas" else
-                 "fichier Eurostat" if nom == "lucas" else
+                 "fichier data.gouv.fr" if nom in FICHIERS else
                  "flux WFS" if s["mode"] == "wfs" else "API")
         print(f"{nom:32} {s['producteur'][:40]:40} {acces}  ->  data/{s['fichier']}")
     print("\nNon téléchargés (sites qui refusent les scripts, documents de référence seulement) : "
