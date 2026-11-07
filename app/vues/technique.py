@@ -8,7 +8,7 @@ import pandas as pd
 import streamlit as st
 
 from commun import (AXE_FR, CAT, MIN_HA, NEUTRE, OFFICIEL, aides_chiffres, bornes, comparaison,
-                    evaluation, exiger_sorties, ha, lancer, manquantes, nombre, pct, table)
+                    evaluation, exiger_sorties, ha, manquantes, nombre, pct, table)
 from prairimetre.config import RECENT
 from prairimetre.donnees import FAMILLES as FAMILLES_ZONAGES
 from prairimetre.sources import SOURCES
@@ -98,37 +98,6 @@ def phrase_robustesse(zonage, sujet):
 def moy(d, c):
     """Moyenne pondérée par la surface."""
     return (d[c] * d.ha).sum() / d.ha.sum()
-
-
-def executer(*etapes):
-    """Lance une ou plusieurs commandes du moteur à la suite, journal en direct ; s'arrête à la
-    première qui échoue. Renvoie True si tout s'est bien passé."""
-    st.session_state["en_cours"] = True
-    zone, journal = st.empty(), []
-    progression = re.compile(r"\d+ / [\d,]+ (Mo|objets)$")
-    try:
-        with st.spinner("Le moteur travaille…"):
-            for args in etapes:
-                journal.append("$ python -m prairimetre " + " ".join(map(str, args)))
-                for ligne in lancer(*args):
-                    if ligne.startswith("__code__"):
-                        code = int(ligne[8:])
-                        break
-                    # une barre de progression remplace la ligne précédente
-                    if progression.search(ligne) and progression.search(journal[-1]):
-                        journal[-1] = ligne
-                    else:
-                        journal.append(ligne)
-                    zone.code("\n".join(journal[-40:]), language=None)
-                if code != 0:
-                    st.error("Le moteur s'est arrêté : voir le journal ci-dessus. Rien n'a été "
-                             "remplacé si la vérification a échoué.")
-                    return False
-    finally:
-        st.session_state["en_cours"] = False
-        st.cache_data.clear()  # les pages relisent les nouvelles sorties
-    st.success("Terminé : toutes les pages affichent maintenant les nouvelles données.")
-    return True
 
 
 a0, an = bornes()
@@ -386,48 +355,110 @@ with mots:
     for colonne, partie in zip(st.columns(2), (lignes[:milieu], lignes[milieu:])):
         colonne.markdown("  \n".join(partie))
 
-# --- Recalculer : un seul bouton --------------------------------------------------------------------
+# --- Recalculer : deux boutons, le registre PAC et les images satellite --------------------------------
 with moteur:
-    if st.button("Relancer les calculs", type="primary", icon=":material/play_arrow:",
-                 disabled=st.session_state.get("en_cours", False)):
-        executer(["calculer"], ["evaluer"])
-
-    # --- Vérification par satellite : toutes les communes, sans jamais remesurer --------------------
-    st.divider()
+    import json
     import subprocess
     import sys
+    import time
+
+    import psutil
 
     from prairimetre import sentinel as sen
-    from prairimetre.config import RACINE
+    from prairimetre.config import RACINE, SORTIES, annees
 
-    st.markdown("**Vérification par satellite**",
+    DETACHE = ({"creationflags": subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP}
+               if sys.platform == "win32" else {"start_new_session": True})
+    F_MAJ, JOURNAL_MAJ = SORTIES / "mise_a_jour.json", SORTIES / "mise_a_jour.txt"
+
+    def lancer_detache(args, journal):
+        """Lance une commande du moteur qui continue même si on ferme l'appli ; renvoie son numéro."""
+        proc = subprocess.Popen([sys.executable, "-X", "utf8", "-m", "prairimetre", *args], cwd=RACINE,
+                                stdout=open(journal, "w", encoding="utf-8"), stderr=subprocess.STDOUT,
+                                env={**__import__("os").environ, "PYTHONUNBUFFERED": "1"}, **DETACHE)
+        return proc.pid
+
+    def mise_a_jour_en_cours():
+        if not F_MAJ.exists():
+            return None
+        a = json.loads(F_MAJ.read_text(encoding="utf-8"))
+        return a if psutil.pid_exists(a["pid"]) else None
+
+    @st.cache_data(ttl=6 * 3600, show_spinner=False)
+    def publies():
+        """Millésimes du registre publiés par l'IGN (vérifié au plus toutes les 6 heures)."""
+        from prairimetre.telecharger import annees_publiees
+        try:
+            return annees_publiees()
+        except Exception:
+            return None
+
+    # 1. Le registre PAC : chaque année, un nouveau millésime ----------------------------------------
+    st.markdown("#### Le registre PAC")
+    A = annees()
+    pub = publies()
+    nouveau = max(pub) if pub and A and max(pub) > A[-1] else None
+
+    @st.fragment(run_every="20s")
+    def suivi_registre():
+        a = mise_a_jour_en_cours()
+        if a:
+            lignes = JOURNAL_MAJ.read_text(encoding="utf-8", errors="replace").strip().splitlines()
+            st.info(f"Mise à jour en cours depuis {nombre((time.time() - a['debut']) / 60)} min "
+                    "(environ 1 h). Dernière étape :")
+            st.code("\n".join(lignes[-6:]) or "démarrage…", language=None)
+        return a
+
+    en_cours_maj = suivi_registre()
+    if nouveau:
+        st.markdown(f"Registre installé : {A[0]}→{A[-1]}. **Le registre {nouveau} est publié par l'IGN.**")
+        etiquette = f"Installer le registre {nouveau} et tout recalculer"
+    else:
+        st.markdown(f"Registre installé : {A[0]}→{A[-1]}"
+                    + (", à jour." if pub else " (impossible de vérifier les publications de l'IGN)."))
+        etiquette = "Recalculer avec le registre actuel"
+    if st.button(etiquette, type="primary", icon=":material/agriculture:", key="registre",
+                 disabled=bool(en_cours_maj) or bool(sen.avancement()),
+                 help="Télécharge le nouveau registre, le contrôle, recalcule toutes les tables et les "
+                      "preuves (environ 1 h). Continue même si on ferme l'appli. Ensuite, lancer les "
+                      "images satellite pour la nouvelle année."):
+        pid = lancer_detache(["mettre-a-jour"] if nouveau else ["recalculer"], JOURNAL_MAJ)
+        F_MAJ.write_text(json.dumps({"pid": pid, "debut": time.time()}), encoding="utf-8")
+        st.toast("Mise à jour lancée.")
+        st.rerun()
+
+    # 2. Les images satellite : les prairies sorties de la déclaration, une fois pour toutes ----------
+    st.divider()
+    st.markdown("#### Les images satellite",
                 help="Chaque prairie sortie de la déclaration (au moins 1 ha) est regardée sur toutes les "
-                     "images Sentinel-2 sans nuage de l'année : restée verte, ou labourée. Les mesures sont "
-                     "gardées dans verification/sentinel2/ : une parcelle déjà mesurée n'est jamais "
-                     "redemandée. Résultats dans Objectif 2030 et Ma commune.")
+                     "images Sentinel-2 sans nuage de la dernière année du registre : restée verte, ou "
+                     "labourée. Les résultats sont rangés dans verification/sentinel2/<année>/ et l'appli "
+                     "ne fait que les lire : une parcelle déjà mesurée n'est jamais redemandée.")
 
-    @st.fragment(run_every="15s")
+    @st.fragment(run_every="20s")
     def suivi_satellite():
         a, r = sen.avancement(), sen.resume_mesures()
         if a:
             reste = max(a["total"] - a["faits"], 0)
             st.progress(min(a["faits"] / max(a["total"], 1), 1.0),
                         text=f"En cours : {nombre(a['faits'])} parcelles sur {nombre(a['total'])}, fin dans "
-                             f"environ {nombre(reste * sen.SECONDES_PAR_PARCELLE / 60)} min.")
+                             f"environ {nombre(reste * sen.SECONDES_PAR_PARCELLE / 3600, 1)} h.")
         if r:
-            st.caption(f"Mesurées : {nombre(r['parcelles'])} parcelles sur {nombre(r['cible_parcelles'])} "
-                       f"({ha(r['ha'])} sur {ha(r['cible_ha'])}).")
+            st.markdown(f"Images {sen.periode()[1]} : {nombre(r['parcelles'])} prairies sorties mesurées sur "
+                        f"{nombre(r['cible_parcelles'])}.")
+        else:
+            st.markdown(f"Images {sen.periode()[1]} : aucune prairie sortie mesurée.")
         return a, r
 
-    en_cours, r = suivi_satellite()
+    en_cours_sat, r = suivi_satellite()
     complet = r is not None and r["parcelles"] >= r["cible_parcelles"]
-    if st.button("Reprendre la vérification satellite", icon=":material/satellite_alt:",
-                 disabled=bool(en_cours) or complet, key="sat_lancer",
-                 help="Reprend là où elle s'est arrêtée, sur toutes les communes."):
-        sen.DOSSIER.mkdir(parents=True, exist_ok=True)
-        options = {"creationflags": subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP}             if sys.platform == "win32" else {"start_new_session": True}
-        subprocess.Popen([sys.executable, "-X", "utf8", "-m", "prairimetre", "satellite"], cwd=RACINE,
-                         stdout=open(sen.DOSSIER / "journal.txt", "w", encoding="utf-8"),
-                         stderr=subprocess.STDOUT, **options)
-        st.toast("Vérification lancée : elle continue même si on ferme l'appli.")
+    if st.button("Recalculer avec les images satellite", icon=":material/satellite_alt:", key="sat_lancer",
+                 disabled=bool(en_cours_sat) or bool(mise_a_jour_en_cours()) or complet,
+                 help="Mesure toutes les prairies sorties pas encore mesurées pour la dernière année du "
+                      "registre (environ 15 h la première fois, puis seulement les nouvelles). Continue même "
+                      "si on ferme l'appli."):
+        lancer_detache(["satellite"], sen.DOSSIER / "journal.txt")
+        st.toast("Mesure lancée.")
         st.rerun()
+    if complet:
+        st.caption("Toutes les prairies sorties sont mesurées pour cette année.")

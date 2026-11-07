@@ -97,7 +97,17 @@ elif r.devenues_non_declare >= 1:
 
 # --- Carte des prairies : la légende est le filtre -------------------------------------------------
 st.subheader("Carte des prairies")
-bouton_details = st.button("Détails de la commune", icon=":material/info:", key="details")
+from prairimetre.sentinel import mesures as mesures_satellite  # noqa: E402
+
+vus = mesures_satellite()
+vus = vus[vus.insee == insee].set_index("id_rpg").etat
+b1, b2 = st.columns([1, 1])
+bouton_details = b1.button("Détails de la commune", icon=":material/info:", key="details")
+satellite = b2.toggle("Vu du satellite", key=f"satellite_{insee}", disabled=vus.empty,
+                      help="Colore les prairies sorties de la déclaration selon ce que voient les images "
+                           f"Sentinel-2 de {an} : restées vertes toute l'année, labourées, ou indéterminées "
+                           "(trop de nuages). Seules les parcelles d'au moins 1 ha sont vérifiées."
+                      if not vus.empty else "Pas encore de mesure satellite pour cette commune.")
 
 disparues, nouvelles = parcelles(insee, an)
 DEVENIR = {"prairie permanente": "toujours en prairie", "culture": "retournée en culture",
@@ -117,6 +127,20 @@ g0["libelle"] = g0.devenir.map(lambda x: DEVENIR.get(x, autre))
 g1["libelle"] = ajoutee
 g1["avant"] = g1.origine.map(lambda x: f"<br/>en {a0} : {AVANT.get(x, 'bois, lande…')}")
 g0["avant"] = ""
+if satellite:
+    # Les prairies sorties de la déclaration, recolorées selon le verdict du satellite
+    SATELLITE = {"couvert permanent": ("sortie, restée verte", "#c8d43a", "🟨"),
+                 "labourée": ("sortie, labourée", "#7a4a2a", "🟫"),
+                 "indéterminé": ("sortie, indéterminée (nuages)", "#d9d9d9", "⬜")}
+    sortie = g0.libelle == DEVENIR["non déclaré"]
+    etat = g0.id_parcel.astype(str).map(vus)
+    for cle, (libelle, couleur, carre) in SATELLITE.items():
+        g0.loc[sortie & (etat == cle), "libelle"] = libelle
+        couleurs[libelle] = couleur
+        CARRES[couleur] = carre
+    g0.loc[sortie & etat.notna(), "avant"] = f"<br/>vu du satellite en {an}"
+    g0.loc[sortie & etat.isna(), "libelle"] = "sortie, non vérifiée"
+    couleurs["sortie, non vérifiée"] = FLUX_COULEURS["non déclaré"]
 tout = pd.concat([g0, g1])
 if tout.empty:
     st.info("Aucune parcelle à afficher.")
@@ -126,7 +150,7 @@ else:
     choix = st.pills(
         "Couleurs affichées", presentes, selection_mode="multi", default=presentes,
         format_func=lambda c: f"{CARRES[couleurs[c]]} {c} ({nombre(nombres[c])})",
-        key=f"couleurs_{insee}_{an}", label_visibility="collapsed")
+        key=f"couleurs_{insee}_{an}_{satellite}", label_visibility="collapsed")
     st.caption("Cliquez sur une couleur pour l'afficher ou la masquer sur la carte.")
     couches = []
     for g, nom in ((g0, "prairies_debut"), (g1, "prairies_ajoutees")):  # ajoutées par-dessus

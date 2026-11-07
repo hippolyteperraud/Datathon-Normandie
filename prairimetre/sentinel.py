@@ -442,8 +442,33 @@ def ecrire_preuves(t=None):
 
 
 # --- Toutes les prairies sorties des communes « Où aller voir » -------------------------------------
-FICHIER_COMMUNES = DOSSIER / "communes_parcelles.csv"
+FICHIER_COMMUNES = DOSSIER / "communes_parcelles.csv"          # avant le rangement par année (2025)
 FICHIER_COMMUNES_IMAGES = DOSSIER / "communes_images.csv"
+
+
+def periode():
+    """Première et dernière année du registre installé : les prairies de la première année, sorties de
+    la déclaration la dernière, sont regardées sur les images de la dernière."""
+    from .config import annees
+    A = annees()
+    return A[0], A[-1]
+
+
+def bloc(annee=None):
+    """Les deux fichiers du bloc des mesures pour une année d'images : (parcelles, images)."""
+    annee = annee or periode()[1]
+    nouveau = (DOSSIER / str(annee) / "parcelles.csv", DOSSIER / str(annee) / "images.csv")
+    if annee == 2025 and FICHIER_COMMUNES.exists() and not nouveau[0].exists():
+        return FICHIER_COMMUNES, FICHIER_COMMUNES_IMAGES
+    return nouveau
+
+
+def mesures(annee=None):
+    """Le bloc des mesures d'une année (une ligne par parcelle), vide s'il n'existe pas."""
+    f = bloc(annee)[0]
+    if not f.exists():
+        return pd.DataFrame(columns=["id_rpg", "insee", "ha", "etat"])
+    return pd.read_csv(f, dtype={"insee": str, "id_rpg": str}).drop_duplicates("id_rpg")
 
 
 def communes_a_aller_voir():
@@ -468,20 +493,22 @@ VERROU_PERIME_S = 600     # sans nouvelle depuis 10 min, le calcul est considér
 SECONDES_PAR_PARCELLE = 3.5  # mesuré : environ 17 parcelles par minute avec 10 requêtes parallèles
 
 
-def parcelles_cibles(insees):
-    """Les prairies de 2018 d'au moins 1 ha sorties à 90 % ou plus de la déclaration en 2025, dans les
-    communes données : index de prairies(2018), commune et surface (sans géométrie)."""
+def parcelles_cibles(insees=None):
+    """Les prairies de la première année d'au moins 1 ha, sorties à 90 % ou plus de la déclaration la
+    dernière année, dans les communes données (toutes par défaut) : index de prairies(première année),
+    commune et surface (sans géométrie)."""
     from .suivi import devenir
-    d = devenir(2018, 2025)
+    a0, an = periode()
+    d = devenir(a0, an)
+    if insees is None:
+        insees = d.insee.dropna().unique()
     m = d.insee.isin(list(insees)) & (d.ha >= 1) & (d["non déclaré"] > 0.9 * d.ha)
     return d.loc[m.values, ["insee", "ha"]]
 
 
-def deja_mesurees():
-    """Identifiants des parcelles déjà dans le bloc des mesures."""
-    if not FICHIER_COMMUNES.exists():
-        return set()
-    return set(pd.read_csv(FICHIER_COMMUNES, dtype={"id_rpg": str}, usecols=["id_rpg"]).id_rpg)
+def deja_mesurees(annee=None):
+    """Identifiants des parcelles déjà dans le bloc des mesures de l'année d'images."""
+    return set(mesures(annee).id_rpg)
 
 
 def avancement():
@@ -501,7 +528,7 @@ def _noter_avancement(**champs):
     FICHIER_VERROU.write_text(json.dumps(a, ensure_ascii=False), encoding="utf-8")
 
 
-def verifier_communes(insees=None, annee=2025, travailleurs=10):
+def verifier_communes(insees=None, annee=None, travailleurs=10):
     """Mesure, image par image, chaque prairie sortie de la déclaration (voir parcelles_cibles) dans
     les communes données ; par défaut, les communes à aller voir (prioritaires d'abord). Seules les
     parcelles absentes du bloc sont mesurées ; chacune y est écrite aussitôt. Un seul calcul à la
@@ -511,16 +538,20 @@ def verifier_communes(insees=None, annee=2025, travailleurs=10):
     from .donnees import prairies
     if avancement():
         raise SystemExit("Une vérification satellite est déjà en cours : attendre qu'elle finisse.")
+    a0, an = periode()
+    annee = annee or an
+    f_parcelles, f_images = bloc(annee)
+    f_parcelles.parent.mkdir(parents=True, exist_ok=True)
     prio, second = communes_a_aller_voir()
     if insees is None:
         insees = prio + second
     cibles = parcelles_cibles(insees)
-    g = prairies(2018).loc[cibles.index, ["id_parcel", "geometry"]].copy()
+    g = prairies(a0).loc[cibles.index, ["id_parcel", "geometry"]].copy()
     g["insee"], g["ha"] = cibles.insee.values, cibles.ha.values
     g["priorite"] = np.select([g.insee.isin(prio), g.insee.isin(second)],
                               ["prioritaire", "secondaire"], "autre")
     g["id_rpg"] = g.id_parcel.astype(str)
-    faits = deja_mesurees()
+    faits = deja_mesurees(annee)
     reste = g[~g.id_rpg.isin(faits)].sort_values(["priorite", "insee"])
     print(f"{len(g)} parcelles dans {len(set(insees))} communes, {len(g) - len(reste)} déjà mesurées, "
           f"{len(reste)} à mesurer (environ {len(reste) * SECONDES_PAR_PARCELLE / 60:.0f} min)", flush=True)
@@ -547,12 +578,11 @@ def verifier_communes(insees=None, annee=2025, travailleurs=10):
                                "longitude": round(c.x, 5), "images": len(p),
                                "images_sans_nuage": len(_propres(p)), "etat": etat, "raison": raison}])
         with verrou:
-            ligne.to_csv(FICHIER_COMMUNES, mode="a", index=False, header=not FICHIER_COMMUNES.exists(),
+            ligne.to_csv(f_parcelles, mode="a", index=False, header=not f_parcelles.exists(),
                          encoding="utf-8")
             if len(p):
-                p.assign(id_rpg=r.id_rpg).to_csv(FICHIER_COMMUNES_IMAGES, mode="a", index=False,
-                                                  header=not FICHIER_COMMUNES_IMAGES.exists(),
-                                                  encoding="utf-8")
+                p.assign(id_rpg=r.id_rpg).to_csv(f_images, mode="a", index=False,
+                                                  header=not f_images.exists(), encoding="utf-8")
             compte["faits"] += 1
             _noter_avancement(faits=compte["faits"])
 
@@ -565,13 +595,11 @@ def verifier_communes(insees=None, annee=2025, travailleurs=10):
         FICHIER_VERROU.unlink(missing_ok=True)
 
 
-def resume_mesures(insee=None):
+def resume_mesures(insee=None, annee=None):
     """Ce que le bloc des mesures dit des prairies sorties de la déclaration, pour la région ou pour
-    une commune : parcelles et hectares mesurés, restés verts, labourés, indéterminés, et la part de
-    la cible (prairies sorties d'au moins 1 ha) déjà mesurée. None si rien n'est mesuré."""
-    if not FICHIER_COMMUNES.exists():
-        return None
-    m = pd.read_csv(FICHIER_COMMUNES, dtype={"insee": str, "id_rpg": str}).drop_duplicates("id_rpg")
+    une commune : parcelles et hectares mesurés, restés verts, labourés, indéterminés, et la cible
+    (prairies sorties d'au moins 1 ha). None si rien n'est mesuré."""
+    m = mesures(annee)
     if insee is not None:
         m = m[m.insee == insee]
     if m.empty:
@@ -579,11 +607,8 @@ def resume_mesures(insee=None):
     tr = m[m.etat != "indéterminé"]
     vert = tr.loc[tr.etat == "couvert permanent", "ha"].sum()
     lab = tr.loc[tr.etat == "labourée", "ha"].sum()
-    cible = parcelles_cibles(m.insee.unique() if insee is None else [insee])
-    if insee is None:
-        from .suivi import devenir
-        d = devenir(2018, 2025)
-        cible = d[(d.ha >= 1) & (d["non déclaré"] > 0.9 * d.ha) & d.insee.notna()]
+    cible = parcelles_cibles(None if insee is None else [insee])
     return {"parcelles": len(m), "ha": m.ha.sum(), "ha_verts": vert, "ha_laboures": lab,
-            "ha_indetermines": m.ha.sum() - tr.ha.sum(), "part_verte": vert / (vert + lab) if vert + lab else None,
+            "ha_indetermines": m.ha.sum() - tr.ha.sum(),
+            "part_verte": vert / (vert + lab) if vert + lab else None,
             "cible_parcelles": len(cible), "cible_ha": cible.ha.sum()}

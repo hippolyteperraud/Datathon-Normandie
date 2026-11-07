@@ -4,10 +4,7 @@ et lancement des commandes du moteur (python -m prairimetre ...).
 Règle des données manquantes : on n'affiche jamais une case vide ou « None » ; chaque absence
 est remplacée par sa raison (« moins de 20 ha de prairies », « non renseigné dans le Sandre »...).
 """
-import os
 import re
-import subprocess
-import sys
 
 import pandas as pd
 import pydeck as pdk
@@ -287,16 +284,3 @@ AXE_FR = "replace(format(datum.value, ',.0f'), regexp(',', 'g'), ' ')"
 
 
 # --- Appel du moteur en ligne de commande ----------------------------------------------------
-
-def lancer(*args):
-    """Lance « python -m prairimetre <args> » et renvoie ses lignes au fil de l'eau."""
-    env = {**os.environ, "PYTHONUNBUFFERED": "1", "PYTHONIOENCODING": "utf-8"}
-    p = subprocess.Popen([sys.executable, "-X", "utf8", "-m", "prairimetre", *map(str, args)],
-                         cwd=RACINE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                         text=True, encoding="utf-8", errors="replace", env=env, bufsize=1)
-    for ligne in p.stdout:
-        for morceau in ligne.rstrip("\n").split("\r"):  # barres de progression
-            if morceau.strip() and "Warning" not in morceau:
-                yield morceau
-    p.wait()
-    yield f"__code__{p.returncode}"

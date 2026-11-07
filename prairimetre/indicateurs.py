@@ -427,7 +427,7 @@ def parcelles_commune(insee):
     for t, p, col in [(devenir(a0, an), prairies(a0), "devenir"),
                       (origine(a0, an), prairies(an), "origine")]:
         sel = (t.insee == insee).values
-        g = p.loc[sel, ["geometry"]].copy()
+        g = p.loc[sel, ["id_parcel", "geometry"]].copy()
         g[col] = t.loc[sel, CATEGORIES].idxmax(axis=1).values
         g["ha"] = t.loc[sel, "ha"].values
         sorties.append(g.reset_index(drop=True))

@@ -134,6 +134,12 @@ def mettre_a_jour(args):
     evaluer(args)
 
 
+def recalculer(args):
+    calculer(args)
+    args.rapide = False
+    evaluer(args)
+
+
 def satellite(args):
     """Toutes les communes par défaut (les communes à aller voir d'abord) ; ou celles données."""
     import pandas as pd
@@ -173,12 +179,14 @@ def main():
     c.add_argument("--annee", type=int, nargs="*")
     c.set_defaults(f=controler)
     sp.add_parser("calculer").set_defaults(f=calculer)
+    sp.add_parser("recalculer", help="calculer puis évaluer, sur le registre installé").set_defaults(
+        f=recalculer)
     e = sp.add_parser("evaluer")
     e.add_argument("--rapide", action="store_true", help="sans le test de certitude (OCS GE)")
     e.set_defaults(f=evaluer)
     sa = sp.add_parser("satellite", help="vérifier par images Sentinel-2 les prairies sorties")
     sa.add_argument("--communes", nargs="*", help="codes INSEE ; par défaut toutes les communes")
-    sa.add_argument("--annee", type=int, default=2025)
+    sa.add_argument("--annee", type=int, help="année des images ; par défaut la dernière du registre")
     sa.set_defaults(f=satellite)
     lv = sp.add_parser("livrer")
     lv.add_argument("--avec-donnees", action="store_true", help="joindre data/ (plusieurs Go)")
@@ -188,7 +196,7 @@ def main():
     args.f(args)
     duree = time.time() - debut
     print(f"\n({duree:,.0f} s)")
-    if args.commande in ("calculer", "evaluer", "mettre-a-jour"):
+    if args.commande in ("calculer", "evaluer", "mettre-a-jour", "recalculer"):
         sobriete(args.commande, duree)
 
 
