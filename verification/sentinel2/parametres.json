@@ -1,0 +1,17 @@
+{
+  "annee_images": 2025,
+  "source": "Sentinel-2 L2A (Copernicus), Microsoft Planetary Computer",
+  "stac": "https://planetarycomputer.microsoft.com/api/stac/v1/search",
+  "donnees": "https://planetarycomputer.microsoft.com/api/data/v1/item",
+  "graines": [
+    2026,
+    2027
+  ],
+  "propre_max": 0.05,
+  "images_min": 6,
+  "ndvi_bas": 0.25,
+  "images_basses_labour": 3,
+  "q10_labour": 0.27,
+  "q10_couvert": 0.36,
+  "date_calcul": "2026-11-07"
+}

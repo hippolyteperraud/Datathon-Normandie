@@ -21,7 +21,7 @@ import requests
 import truststore
 from py7zr.io import Py7zIO, WriterFactory
 
-from .config import BBOX, CACHE, DATA, MANIFEST
+from .config import BBOX, CACHE, DATA, MANIFEST, REGION
 from .sources import SOURCES, WFS_IGN, ZONAGES_WFS
 
 truststore.inject_into_ssl()  # certificats du système (sinon échec TLS sur data.geopf.fr)
@@ -88,9 +88,9 @@ def trouver_ressource(famille, motif):
 
 
 def annees_publiees():
-    """Millésimes RPG de la Normandie disponibles au téléchargement."""
-    noms = [n for n in ressources_ign("RPG") if "R28" in n]
-    return sorted({int(m.group(1)) for n in noms if (m := re.search(r"R28[-_](\d{4})", n))})
+    """Millésimes RPG de la région (config.REGION) disponibles au téléchargement."""
+    noms = [n for n in ressources_ign("RPG") if REGION in n]
+    return sorted({int(m.group(1)) for n in noms if (m := re.search(rf"{REGION}[-_](\d{{4}})", n))})
 
 
 def _telecharger(url, dest):

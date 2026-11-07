@@ -1,7 +1,7 @@
 # Tester l'application Prairimètre
 
-Le dépôt contient le code, pas les données (6,7 Go, trop lourdes pour GitHub). Un script les
-télécharge depuis leurs sources officielles (IGN, data.gouv.fr, Eurostat), puis calcule les
+Le dépôt contient le code, pas les données (environ 6,5 Go, trop lourdes pour GitHub). Un script les
+télécharge depuis leurs sources officielles (IGN, data.gouv.fr, Sandre), puis calcule les
 résultats. Compter **environ 11 Go d'espace disque** (données + fichiers intermédiaires) et
 **plusieurs heures** la première fois. Testé avec Python 3.13 sous Windows 11.
 
@@ -52,11 +52,14 @@ machine : elle n'est pas accessible depuis le réseau.
 
 | Page | Ce qu'elle montre |
 |---|---|
-| Où agir (accueil) | Les trois moyens d'agir, chacun avec son conseil, ses territoires et son indicateur de suivi |
-| Ma commune | Les hectares d'une commune, en tout et zone par zone, la carte de ses parcelles |
-| Carte des données | Où il en faudrait plus : l'état réel des prairies sorties de la déclaration, les habitats prairiaux des départements sans cartographie |
-| Données et méthode | Les preuves (et les tests qui les vérifient), les sources, et la mise à jour des données |
-| Technique | Les données qu'on a : une petite carte par source (en noir, là où une source ne dit rien) ; trois chiffres ; les mots de l'outil |
+| Objectif 2030 (accueil) | L'objectif régional selon la statistique agricole et selon le registre PAC, pourquoi ils diffèrent (2019, 2023), ce qui retient les prairies, ce qu'on ne sait pas |
+| Ma commune | Ce que sont devenues les prairies d'une commune, la carte de ses parcelles |
+| Où aller voir | Les communes qui portent la moitié des sorties de la déclaration, et ce que le satellite y voit |
+| Prendre exemple | Les communes qui gagnent des prairies, et celles qui n'en perdent pas |
+| Technique | Les preuves, les sources et les textes officiels, les mots de l'outil, le recalcul |
+
+La vision satellite (`verification/sentinel2/`) est fournie dans le dépôt ; pour la refaire :
+`python scripts/analyser_satellite_sentinel.py --sentinel`.
 
 Le fond de carte demande une connexion internet.
 

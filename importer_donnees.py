@@ -1,6 +1,6 @@
 """Prairimètre : récupérer TOUTES les données utilisées par le projet, en une commande.
 
-    python importer_donnees.py                    # tout (≈ 6,7 Go ; plusieurs heures la 1re fois)
+    python importer_donnees.py                    # tout (≈ 6,5 Go ; plusieurs heures la 1re fois)
     python importer_donnees.py --liste            # quoi, d'où, vers où, sans rien télécharger
     python importer_donnees.py --seulement znieff1
     python importer_donnees.py --avec-officielle  # + couche officielle des prairies (≈ 6 h de plus)
@@ -63,6 +63,16 @@ def ressource_datagouv(jeu, choisir):
     return trouve[0]["url"]
 
 
+def archive_agreste():
+    """Archive la plus récente des séries longues de la statistique agricole (Agreste)."""
+    page = _get(SOURCES["saa_series"]["page"]).text
+    liens = re.findall(r'href="([^"]*SAA-SeriesLongues[^"]*DepartementalesRegionales\.zip)"', page)
+    if not liens:
+        raise RuntimeError("lien des séries longues introuvable sur la page Agreste")
+    lien = liens[0]
+    return lien if lien.startswith("http") else "https://agreste.agriculture.gouv.fr" + lien
+
+
 def archive_atom(r):
     """Archive complète du jeu (« Téléchargement simple (Atom) ») des services de l'État."""
     return "atomArchive" in r["url"]
@@ -75,6 +85,7 @@ FICHIERS = {
     "saa_prairies": (lambda: ressource_datagouv(
         "pourcentage-devolution-annuelle-de-la-surface-en-prairie-permanente-et-temporaire",
         lambda r: "departement" in r["title"].lower()), ".csv"),
+    "saa_series": (lambda: archive_agreste(), ".zip"),
     "znieff1": (lambda: ressource_datagouv(
         "zones-naturelles-dinteret-ecologique-faunistique-et-floristique-de-type-1-de-normandie",
         archive_atom), ".zip"),
@@ -142,6 +153,7 @@ def lister():
         acces = ("archives IGN, une par année" if nom == "rpg" else
                  "archives IGN, une par département" if nom == "ocsge" else
                  "archive IGN" if nom == "communes" else
+                 "archive Agreste" if nom == "saa_series" else
                  "fichier data.gouv.fr" if nom in FICHIERS else
                  "flux WFS" if s["mode"] == "wfs" else "API")
         print(f"{nom:32} {s['producteur'][:40]:40} {acces}  ->  data/{s['fichier']}")

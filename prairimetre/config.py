@@ -10,19 +10,20 @@ CACHE = Path(os.environ.get("PRAIRIMETRE_CACHE", RACINE / "cache"))
 SORTIES = Path(os.environ.get("PRAIRIMETRE_SORTIES", RACINE / "sorties"))
 MANIFEST = DATA / "manifest.json"
 
-REGION = "R28"                       # code de la Normandie dans les archives IGN
+REGION = "R28"                       # code de la Normandie dans les archives IGN (RPG régional)
 DEPARTEMENTS = ["14", "27", "50", "61", "76"]
 BBOX = (330000, 6740000, 620000, 7000000)  # emprise Lambert-93 de la Normandie, avec marge
 ANNEE_DEBUT = 2018                   # premier millésime suivi
 
 MIN_HA = 20        # en dessous, un taux communal n'a pas de sens (sensibilité testée : 10, 20, 50)
-SEUIL_ECLAT = 0.1  # part de parcelle en dessous de laquelle un changement est du bruit géométrique
 RECENT = 3         # « récent » = les 3 derniers millésimes (sensibilité testée : 2, 3, 4)
 
-# Objectif régional : zéro perte nette de prairies permanentes en 2030 (stratégie régionale
-# biodiversité, objectif III.5). Année de référence retenue : 2022, année d'adoption de la
-# stratégie. À CONFIRMER avec la Région ; changer ici suffit.
-ANNEE_REFERENCE_OBJECTIF = 2022
+# Objectif régional (Stratégie régionale pour la biodiversité Normandie 2030, votée le 17/10/2022,
+# objectif III.5) : « atteindre zéro perte nette de prairies permanentes à l'échelle normande à
+# l'horizon 2030 », « maintenir autant de prairies permanentes entre 2021 et 2030 » ; cible :
+# « maintenir les prairies permanentes à 39 % de la Surface Agricole Utile (Agreste, 2020,
+# données 2019) ». Référence des surfaces : 2021.
+ANNEE_REFERENCE_OBJECTIF = 2021
 ANNEE_OBJECTIF = 2030
 
 

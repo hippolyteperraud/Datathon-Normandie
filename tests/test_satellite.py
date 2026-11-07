@@ -87,6 +87,37 @@ class Observations(unittest.TestCase):
         self.assertLess(bas, haut)
 
 
+class RegleSentinel(unittest.TestCase):
+    """La règle automatique sur des profils inventés (sans appel au service)."""
+
+    @staticmethod
+    def profil(ndvi, nu=None, sale=None):
+        import pandas as pd
+        n = len(ndvi)
+        return pd.DataFrame({"date": [f"2025-{1 + i % 12:02d}-01" for i in range(n)], "item": "x",
+                             "part_sale": sale or [0.0] * n, "part_sol_nu": nu or [0.0] * n,
+                             "ndvi": ndvi})
+
+    def test_prairie(self):
+        from prairimetre.sentinel import classer
+        self.assertEqual(classer(self.profil([0.5, 0.6, 0.62, 0.55, 0.48, 0.5, 0.52]))[0],
+                         "couvert permanent")
+
+    def test_labour(self):
+        from prairimetre.sentinel import classer
+        p = self.profil([0.4, 0.18, 0.2, 0.5, 0.8, 0.7, 0.3], nu=[0, 0.9, 0.8, 0, 0, 0, 0.1])
+        self.assertEqual(classer(p)[0], "labourée")
+
+    def test_trop_de_nuages(self):
+        from prairimetre.sentinel import classer
+        p = self.profil([0.5] * 8, sale=[0.5] * 8)
+        self.assertEqual(classer(p)[0], "indéterminé")
+
+    def test_bati(self):
+        from prairimetre.sentinel import classer
+        self.assertEqual(classer(self.profil([0.1, 0.12, 0.15, 0.11, 0.1, 0.13]))[0], "bâti ou minéral")
+
+
 class Wilson(unittest.TestCase):
     def test_bornes(self):
         self.assertEqual(intervalle_wilson(0, 0), (0.0, 1.0))

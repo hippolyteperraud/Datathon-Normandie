@@ -1,0 +1,151 @@
+groupe,id_rpg,numero,insee,ha,latitude,longitude,images,images_sans_nuage,etat,raison,etat_premiere_regle,occupation_2023,population,population_ha
+réglage prairie,5533525,,14680,2.0,49.29507,-0.72585,52,35,couvert permanent,"35 images, NDVI : 10e centile 0,45, 0 sous 0,25",couvert permanent,végétation basse entretenue,119442.0,521396.21789233555
+réglage prairie,4021478,,50060,12.62,48.8566,-1.24104,52,41,couvert permanent,"41 images, NDVI : 10e centile 0,51, 0 sous 0,25",couvert permanent,végétation basse entretenue,119442.0,521396.21789233555
+réglage prairie,6520599,,50099,7.74,49.27566,-1.20893,52,39,indéterminé,"39 images, NDVI : 10e centile 0,32, 2 sous 0,25 (zone grise)",labourée,végétation basse entretenue,119442.0,521396.21789233555
+réglage prairie,8424922,,61486,1.59,48.69611,-0.76044,65,41,couvert permanent,"41 images, NDVI : 10e centile 0,48, 0 sous 0,25",labourée,végétation basse entretenue,119442.0,521396.21789233555
+réglage prairie,4057560,,50405,3.54,49.27983,-1.41342,52,32,couvert permanent,"32 images, NDVI : 10e centile 0,46, 0 sous 0,25",labourée,végétation basse entretenue,119442.0,521396.21789233555
+réglage prairie,3332794,,61091,4.04,48.62793,-0.57658,52,33,couvert permanent,"33 images, NDVI : 10e centile 0,46, 0 sous 0,25",couvert permanent,végétation basse entretenue,119442.0,521396.21789233555
+réglage prairie,480954,,76455,14.54,49.50108,1.40841,50,32,couvert permanent,"32 images, NDVI : 10e centile 0,48, 0 sous 0,25",couvert permanent,végétation basse entretenue,119442.0,521396.21789233555
+réglage prairie,5103775,,76252,1.87,50.02764,1.38635,54,37,couvert permanent,"37 images, NDVI : 10e centile 0,42, 0 sous 0,25",labourée,bâti,119442.0,521396.21789233555
+réglage prairie,1448590,,14001,2.22,49.37618,0.29764,64,44,couvert permanent,"44 images, NDVI : 10e centile 0,46, 0 sous 0,25",labourée,arbres,119442.0,521396.21789233555
+réglage prairie,3879645,,76092,2.59,49.57313,0.53621,45,28,couvert permanent,"28 images, NDVI : 10e centile 0,38, 0 sous 0,25",indéterminé,végétation basse entretenue,119442.0,521396.21789233555
+réglage prairie,9543658,,76618,11.57,49.94482,1.34329,52,32,couvert permanent,"32 images, NDVI : 10e centile 0,46, 1 sous 0,25",labourée,végétation basse entretenue,119442.0,521396.21789233555
+réglage prairie,4948486,,61382,4.07,48.46699,-0.04998,35,29,indéterminé,"29 images, NDVI : 10e centile 0,28, 0 sous 0,25 (zone grise)",labourée,végétation basse entretenue,119442.0,521396.21789233555
+réglage prairie,5231637,,61076,1.65,48.59765,0.00229,35,26,indéterminé,"26 images, NDVI : 10e centile 0,36, 1 sous 0,25 (zone grise)",labourée,herbe et broussailles,119442.0,521396.21789233555
+réglage prairie,9877828,,61373,3.94,48.57674,0.52653,38,23,indéterminé,"23 images, NDVI : 10e centile 0,30, 1 sous 0,25 (zone grise)",labourée,végétation basse entretenue,119442.0,521396.21789233555
+réglage prairie,6078073,,50159,1.07,49.03227,-1.20803,52,33,couvert permanent,"33 images, NDVI : 10e centile 0,49, 0 sous 0,25",couvert permanent,végétation basse entretenue,119442.0,521396.21789233555
+réglage prairie,158721,,14150,3.02,48.95435,-0.31667,52,37,couvert permanent,"37 images, NDVI : 10e centile 0,48, 0 sous 0,25",labourée,végétation basse entretenue,119442.0,521396.21789233555
+réglage prairie,6664042,,61104,1.68,48.59714,-0.26861,72,48,couvert permanent,"48 images, NDVI : 10e centile 0,45, 0 sous 0,25",labourée,herbe et broussailles,119442.0,521396.21789233555
+réglage prairie,8725868,,50401,4.09,49.4685,-1.7751,31,21,couvert permanent,"21 images, NDVI : 10e centile 0,43, 0 sous 0,25",couvert permanent,végétation basse entretenue,119442.0,521396.21789233555
+réglage prairie,1201268,,50617,4.0,49.33537,-1.50119,40,25,couvert permanent,"25 images, NDVI : 10e centile 0,51, 0 sous 0,25",couvert permanent,végétation basse entretenue,119442.0,521396.21789233555
+réglage prairie,3757091,,61487,5.1,48.54363,-0.64938,52,37,couvert permanent,"37 images, NDVI : 10e centile 0,49, 0 sous 0,25",couvert permanent,végétation basse entretenue,119442.0,521396.21789233555
+réglage culture,5244712,,61429,1.92,48.64114,0.71134,40,4,indéterminé,"4 images sans nuage, il en faut 6",indéterminé,végétation basse entretenue,3201.0,9608.16519753799
+réglage culture,4220205,,76415,2.1,49.6887,1.38656,55,39,labourée,"39 images, NDVI : 10e centile 0,22, 11 sous 0,25 ; le plus bas le 2025-04-29 (0,21)",labourée,végétation basse entretenue,3201.0,9608.16519753799
+réglage culture,1177150,,27542,3.72,49.25534,0.59821,32,23,labourée,"23 images, NDVI : 10e centile 0,20, 6 sous 0,25 ; le plus bas le 2025-03-20 (0,19)",labourée,végétation basse entretenue,3201.0,9608.16519753799
+réglage culture,3762833,,50099,1.52,49.36621,-1.19378,52,38,labourée,"38 images, NDVI : 10e centile 0,22, 10 sous 0,25 ; le plus bas le 2025-04-02 (0,21)",labourée,végétation basse entretenue,3201.0,9608.16519753799
+réglage culture,8264865,,76352,1.65,49.46551,1.42684,50,34,labourée,"34 images, NDVI : 10e centile 0,14, 12 sous 0,25 ; le plus bas le 2025-07-18 (0,12)",labourée,végétation basse entretenue,3201.0,9608.16519753799
+réglage culture,7705226,,50591,1.79,48.54257,-0.84429,52,43,indéterminé,"43 images, NDVI : 10e centile 0,35, 1 sous 0,25 (zone grise)",labourée,végétation basse entretenue,3201.0,9608.16519753799
+réglage culture,4152345,,76464,4.21,49.37644,1.23392,55,41,indéterminé,"41 images, NDVI : 10e centile 0,31, 0 sous 0,25 (zone grise)",labourée,végétation basse entretenue,3201.0,9608.16519753799
+réglage culture,3486924,,50431,3.08,49.18452,-1.27344,52,36,indéterminé,"36 images, NDVI : 10e centile 0,28, 0 sous 0,25 (zone grise)",labourée,végétation basse entretenue,3201.0,9608.16519753799
+réglage culture,5689529,,50551,4.37,49.3907,-1.55788,40,25,indéterminé,"25 images, NDVI : 10e centile 0,30, 2 sous 0,25 (zone grise)",labourée,végétation basse entretenue,3201.0,9608.16519753799
+réglage culture,9185744,,50023,1.19,49.28799,-1.31751,52,44,indéterminé,"44 images, NDVI : 10e centile 0,30, 0 sous 0,25 (zone grise)",labourée,végétation basse entretenue,3201.0,9608.16519753799
+réglage culture,6826453,,50041,3.78,49.67794,-1.8338,32,19,labourée,"19 images, NDVI : 10e centile 0,20, 7 sous 0,25 ; le plus bas le 2025-05-10 (0,15)",labourée,végétation basse entretenue,3201.0,9608.16519753799
+réglage culture,2041873,,50546,1.28,49.03183,-1.12089,52,37,labourée,"37 images, NDVI : 10e centile 0,23, 8 sous 0,25 ; le plus bas le 2025-04-30 (0,21)",labourée,végétation basse entretenue,3201.0,9608.16519753799
+réglage culture,8375397,,14161,10.49,49.25557,0.12061,55,37,labourée,"37 images, NDVI : 10e centile 0,25, 4 sous 0,25 ; le plus bas le 2025-11-26 (0,21)",labourée,végétation basse entretenue,3201.0,9608.16519753799
+réglage culture,4172588,,61026,1.93,48.47621,0.34388,38,28,indéterminé,"28 images, NDVI : 10e centile 0,31, 1 sous 0,25 (zone grise)",labourée,végétation basse entretenue,3201.0,9608.16519753799
+réglage culture,540444,,14061,9.61,48.97015,-0.91179,52,36,labourée,"36 images, NDVI : 10e centile 0,15, 20 sous 0,25 ; le plus bas le 2025-05-19 (0,13)",labourée,végétation basse entretenue,3201.0,9608.16519753799
+réglage culture,224114,,14357,4.97,48.92014,-0.69902,52,36,indéterminé,"36 images, NDVI : 10e centile 0,30, 0 sous 0,25 (zone grise)",labourée,végétation basse entretenue,3201.0,9608.16519753799
+réglage culture,54706,,14347,1.51,49.03925,-0.74142,52,38,labourée,"38 images, NDVI : 10e centile 0,17, 12 sous 0,25 ; le plus bas le 2025-10-12 (0,14)",labourée,végétation basse entretenue,3201.0,9608.16519753799
+réglage culture,2073341,,50593,2.51,49.60875,-1.39346,40,17,labourée,"17 images, NDVI : 10e centile 0,17, 5 sous 0,25 ; le plus bas le 2025-04-30 (0,16)",labourée,végétation basse entretenue,3201.0,9608.16519753799
+réglage culture,7392849,,50599,2.0,49.57442,-1.59013,51,23,labourée,"23 images, NDVI : 10e centile 0,23, 3 sous 0,25 ; le plus bas le 2025-04-02 (0,20)",labourée,végétation basse entretenue,3201.0,9608.16519753799
+réglage culture,2449764,,76327,1.41,49.80354,0.90449,41,28,labourée,"28 images, NDVI : 10e centile 0,24, 5 sous 0,25 ; le plus bas le 2025-10-26 (0,17)",labourée,végétation basse entretenue,3201.0,9608.16519753799
+validation prairie,8317954,,27516,1.66,49.07643,0.61617,32,23,indéterminé,"23 images, NDVI : 10e centile 0,34, 0 sous 0,25 (zone grise)",labourée,végétation basse entretenue,119442.0,521396.21789233555
+validation prairie,9870945,,14096,2.5,48.98759,-0.77534,52,37,couvert permanent,"37 images, NDVI : 10e centile 0,48, 0 sous 0,25",labourée,végétation basse entretenue,119442.0,521396.21789233555
+validation prairie,4668144,,14716,4.27,49.19709,-0.73682,52,35,couvert permanent,"35 images, NDVI : 10e centile 0,47, 0 sous 0,25",couvert permanent,végétation basse entretenue,119442.0,521396.21789233555
+validation prairie,6664971,,76292,29.13,49.53107,1.52017,50,34,couvert permanent,"34 images, NDVI : 10e centile 0,45, 0 sous 0,25",couvert permanent,végétation basse entretenue,119442.0,521396.21789233555
+validation prairie,3863525,,14531,15.67,48.86325,-0.34504,52,31,couvert permanent,"31 images, NDVI : 10e centile 0,37, 0 sous 0,25",indéterminé,végétation basse entretenue,119442.0,521396.21789233555
+validation prairie,3252494,,61344,1.43,48.62887,-0.20158,79,9,indéterminé,"9 images, NDVI : 10e centile 0,35, 0 sous 0,25 (zone grise)",labourée,végétation basse entretenue,119442.0,521396.21789233555
+validation prairie,1905287,,14431,3.57,49.06926,-0.00657,55,38,indéterminé,"38 images, NDVI : 10e centile 0,35, 0 sous 0,25 (zone grise)",labourée,,119442.0,521396.21789233555
+validation prairie,233769,,14712,2.04,49.18622,-0.16731,63,39,labourée,"39 images, NDVI : 10e centile 0,27, 4 sous 0,25 ; le plus bas le 2025-01-12 (-0,02)",labourée,végétation basse entretenue,119442.0,521396.21789233555
+validation prairie,265389,,50388,1.9,49.01553,-1.48158,52,38,couvert permanent,"38 images, NDVI : 10e centile 0,42, 0 sous 0,25",couvert permanent,végétation basse entretenue,119442.0,521396.21789233555
+validation prairie,5874473,,50029,4.53,48.62203,-0.80614,52,38,couvert permanent,"38 images, NDVI : 10e centile 0,45, 0 sous 0,25",couvert permanent,végétation basse entretenue,119442.0,521396.21789233555
+validation prairie,4103642,,61460,3.72,48.8731,0.30258,32,23,indéterminé,"23 images, NDVI : 10e centile 0,36, 0 sous 0,25 (zone grise)",indéterminé,végétation basse entretenue,119442.0,521396.21789233555
+validation prairie,98995,,50419,7.66,48.96076,-1.48118,52,42,couvert permanent,"42 images, NDVI : 10e centile 0,45, 0 sous 0,25",couvert permanent,végétation basse entretenue,119442.0,521396.21789233555
+validation prairie,8506836,,14302,2.04,49.26684,0.0791,55,40,indéterminé,"40 images, NDVI : 10e centile 0,33, 0 sous 0,25 (zone grise)",couvert permanent,herbe et broussailles,119442.0,521396.21789233555
+validation prairie,7421995,,50492,1.13,49.10531,-0.94155,52,40,couvert permanent,"40 images, NDVI : 10e centile 0,37, 0 sous 0,25",labourée,végétation basse entretenue,119442.0,521396.21789233555
+validation prairie,335223,,14346,3.22,49.20269,-0.66808,52,37,couvert permanent,"37 images, NDVI : 10e centile 0,45, 0 sous 0,25",couvert permanent,végétation basse entretenue,119442.0,521396.21789233555
+validation prairie,4772959,,50546,2.33,49.04508,-1.0762,52,40,couvert permanent,"40 images, NDVI : 10e centile 0,44, 0 sous 0,25",labourée,végétation basse entretenue,119442.0,521396.21789233555
+validation prairie,5079674,,76564,6.39,49.87885,0.87021,41,34,couvert permanent,"34 images, NDVI : 10e centile 0,36, 0 sous 0,25",indéterminé,végétation basse entretenue,119442.0,521396.21789233555
+validation prairie,9473795,,76045,2.13,49.63776,0.89212,41,25,indéterminé,"25 images, NDVI : 10e centile 0,36, 0 sous 0,25 (zone grise)",labourée,végétation basse entretenue,119442.0,521396.21789233555
+validation prairie,9709775,,27367,1.82,49.23052,0.54193,32,26,couvert permanent,"26 images, NDVI : 10e centile 0,41, 0 sous 0,25",couvert permanent,végétation basse entretenue,119442.0,521396.21789233555
+validation prairie,129965,,61487,5.06,48.54419,-0.69055,52,39,couvert permanent,"39 images, NDVI : 10e centile 0,38, 0 sous 0,25",couvert permanent,végétation basse entretenue,119442.0,521396.21789233555
+validation culture,4194321,,50492,1.19,49.09794,-0.96774,52,40,indéterminé,"40 images, NDVI : 10e centile 0,30, 2 sous 0,25 (zone grise)",labourée,végétation basse entretenue,3201.0,9608.16519753799
+validation culture,7139318,,27049,4.37,48.99227,0.63549,32,29,indéterminé,"29 images, NDVI : 10e centile 0,30, 1 sous 0,25 (zone grise)",labourée,végétation basse entretenue,3201.0,9608.16519753799
+validation culture,1409460,,50082,1.52,49.42875,-1.65903,31,22,labourée,"22 images, NDVI : 10e centile 0,27, 0 sous 0,25 ; le plus bas le 2025-01-30 (0,25)",labourée,végétation basse entretenue,3201.0,9608.16519753799
+validation culture,942605,,76727,1.98,49.49957,0.71617,32,24,labourée,"24 images, NDVI : 10e centile 0,18, 13 sous 0,25 ; le plus bas le 2025-03-20 (0,17)",labourée,végétation basse entretenue,3201.0,9608.16519753799
+validation culture,6755733,,50492,1.26,49.08485,-0.98811,52,38,indéterminé,"38 images, NDVI : 10e centile 0,28, 2 sous 0,25 (zone grise)",labourée,végétation basse entretenue,3201.0,9608.16519753799
+validation culture,9165951,,76311,5.86,49.58183,0.99415,45,26,labourée,"26 images, NDVI : 10e centile 0,16, 10 sous 0,25 ; le plus bas le 2025-09-29 (0,10)",labourée,végétation basse entretenue,3201.0,9608.16519753799
+validation culture,4415907,,50407,1.63,48.63266,-1.31978,52,37,labourée,"37 images, NDVI : 10e centile 0,22, 7 sous 0,25 ; le plus bas le 2025-01-17 (0,14)",labourée,végétation basse entretenue,3201.0,9608.16519753799
+validation culture,2961643,,76141,1.1,49.60745,0.41035,78,47,labourée,"47 images, NDVI : 10e centile 0,26, 4 sous 0,25 ; le plus bas le 2025-08-17 (0,23)",labourée,végétation basse entretenue,3201.0,9608.16519753799
+validation culture,8348646,,61007,7.27,48.76106,-0.51124,52,38,labourée,"38 images, NDVI : 10e centile 0,22, 5 sous 0,25 ; le plus bas le 2025-08-25 (0,20)",labourée,végétation basse entretenue,3201.0,9608.16519753799
+validation culture,4978719,,50463,2.87,48.95279,-1.33768,52,40,labourée,"40 images, NDVI : 10e centile 0,21, 14 sous 0,25 ; le plus bas le 2025-04-10 (0,19)",labourée,végétation basse entretenue,3201.0,9608.16519753799
+validation culture,8310655,,50040,1.6,48.74762,-0.96695,52,38,labourée,"38 images, NDVI : 10e centile 0,17, 18 sous 0,25 ; le plus bas le 2025-10-12 (0,16)",labourée,végétation basse entretenue,3201.0,9608.16519753799
+validation culture,3135919,,14127,1.0,48.90133,-0.92868,52,38,labourée,"38 images, NDVI : 10e centile 0,19, 16 sous 0,25 ; le plus bas le 2025-05-09 (0,17)",labourée,végétation basse entretenue,3201.0,9608.16519753799
+validation culture,3115770,,14061,2.85,48.9237,-0.8431,52,38,labourée,"38 images, NDVI : 10e centile 0,22, 15 sous 0,25 ; le plus bas le 2025-03-20 (0,21)",labourée,végétation basse entretenue,3201.0,9608.16519753799
+validation culture,3028578,,50252,1.55,48.86616,-1.47026,52,38,labourée,"38 images, NDVI : 10e centile 0,22, 13 sous 0,25 ; le plus bas le 2025-03-20 (0,20)",labourée,végétation basse entretenue,3201.0,9608.16519753799
+validation culture,950953,,76146,1.25,49.59711,1.37643,64,38,indéterminé,"38 images, NDVI : 10e centile 0,28, 0 sous 0,25 (zone grise)",labourée,végétation basse entretenue,3201.0,9608.16519753799
+validation culture,9290329,,50144,2.55,48.79749,-1.13244,52,36,couvert permanent,"36 images, NDVI : 10e centile 0,38, 0 sous 0,25",couvert permanent,végétation basse entretenue,3201.0,9608.16519753799
+validation culture,5365671,,76036,2.21,49.82884,1.0362,41,28,labourée,"28 images, NDVI : 10e centile 0,18, 10 sous 0,25 ; le plus bas le 2025-08-25 (0,16)",labourée,végétation basse entretenue,3201.0,9608.16519753799
+validation culture,9801950,,50299,5.4,49.36472,-1.69673,31,21,labourée,"21 images, NDVI : 10e centile 0,20, 6 sous 0,25 ; le plus bas le 2025-05-02 (0,18)",labourée,végétation basse entretenue,3201.0,9608.16519753799
+validation culture,8767677,,61102,6.76,48.65377,-0.58674,65,40,indéterminé,"40 images, NDVI : 10e centile 0,40, 2 sous 0,25 (zone grise)",labourée,végétation basse entretenue,3201.0,9608.16519753799
+validation culture,4942110,,61248,6.64,48.53102,-0.82355,52,35,labourée,"35 images, NDVI : 10e centile 0,19, 11 sous 0,25 ; le plus bas le 2025-06-16 (0,19)",labourée,végétation basse entretenue,3201.0,9608.16519753799
+sortie 2023,4050992,,50260,1.11,48.68341,-0.98513,65,39,couvert permanent,"39 images, NDVI : 10e centile 0,37, 0 sous 0,25",couvert permanent,végétation basse entretenue,5756.0,19370.041659589628
+sortie 2023,5298545,,14061,1.65,48.98399,-0.83539,52,36,couvert permanent,"36 images, NDVI : 10e centile 0,44, 0 sous 0,25",couvert permanent,végétation basse entretenue,5756.0,19370.041659589628
+sortie 2023,7222562,,14371,1.81,48.96448,0.3098,32,22,couvert permanent,"22 images, NDVI : 10e centile 0,41, 0 sous 0,25",couvert permanent,végétation basse entretenue,5756.0,19370.041659589628
+sortie 2023,6431375,,27557,1.1,49.10922,0.63819,32,23,indéterminé,"23 images, NDVI : 10e centile 0,35, 0 sous 0,25 (zone grise)",labourée,bâti,5756.0,19370.041659589628
+sortie 2023,1262123,,50594,1.18,49.57368,-1.73931,39,21,couvert permanent,"21 images, NDVI : 10e centile 0,41, 1 sous 0,25",labourée,végétation basse entretenue,5756.0,19370.041659589628
+sortie 2023,5035486,,14654,3.04,48.9925,0.05745,55,37,couvert permanent,"37 images, NDVI : 10e centile 0,42, 0 sous 0,25",couvert permanent,herbe et broussailles,5756.0,19370.041659589628
+sortie 2023,6609625,,14620,5.1,49.3116,0.15751,55,37,couvert permanent,"37 images, NDVI : 10e centile 0,44, 0 sous 0,25",couvert permanent,herbe et broussailles,5756.0,19370.041659589628
+sortie 2023,8071662,,76532,3.76,49.616,1.27474,64,33,couvert permanent,"33 images, NDVI : 10e centile 0,42, 1 sous 0,25",labourée,végétation basse entretenue,5756.0,19370.041659589628
+sortie 2023,6526872,,14431,4.05,49.05207,0.02813,55,38,couvert permanent,"38 images, NDVI : 10e centile 0,44, 0 sous 0,25",couvert permanent,végétation basse entretenue,5756.0,19370.041659589628
+sortie 2023,2811691,,50436,1.71,48.62914,-0.96541,52,38,couvert permanent,"38 images, NDVI : 10e centile 0,41, 0 sous 0,25",couvert permanent,bâti,5756.0,19370.041659589628
+sortie 2023,950178,,50391,1.23,48.58663,-1.10709,52,42,couvert permanent,"42 images, NDVI : 10e centile 0,37, 0 sous 0,25",labourée,végétation basse entretenue,5756.0,19370.041659589628
+sortie 2023,9623240,,61230,2.8,48.59001,0.82071,50,32,couvert permanent,"32 images, NDVI : 10e centile 0,38, 0 sous 0,25",labourée,végétation basse entretenue,5756.0,19370.041659589628
+sortie 2023,2517128,,50391,1.1,48.58452,-1.09938,52,42,couvert permanent,"42 images, NDVI : 10e centile 0,39, 0 sous 0,25",labourée,bâti,5756.0,19370.041659589628
+sortie 2023,2478924,,50232,2.03,49.11818,-1.27883,52,38,couvert permanent,"38 images, NDVI : 10e centile 0,49, 0 sous 0,25",couvert permanent,herbe et broussailles,5756.0,19370.041659589628
+sortie 2023,8435412,,61252,2.39,48.82526,0.27959,32,25,couvert permanent,"25 images, NDVI : 10e centile 0,37, 1 sous 0,25",labourée,herbe et broussailles,5756.0,19370.041659589628
+sortie 2023,9127266,,50601,1.14,49.03232,-0.9696,52,37,couvert permanent,"37 images, NDVI : 10e centile 0,37, 0 sous 0,25",couvert permanent,végétation basse entretenue,5756.0,19370.041659589628
+sortie 2023,3342727,,50210,1.35,49.26654,-1.37881,52,30,couvert permanent,"30 images, NDVI : 10e centile 0,42, 0 sous 0,25",couvert permanent,végétation basse entretenue,5756.0,19370.041659589628
+sortie 2023,8833862,,50292,1.04,49.09496,-1.22248,52,37,couvert permanent,"37 images, NDVI : 10e centile 0,42, 0 sous 0,25",labourée,végétation basse entretenue,5756.0,19370.041659589628
+sortie 2023,1510257,,50540,4.63,48.79021,-1.47765,52,36,couvert permanent,"36 images, NDVI : 10e centile 0,49, 0 sous 0,25",labourée,végétation basse entretenue,5756.0,19370.041659589628
+sortie 2023,7214029,,76120,1.49,49.63222,1.39367,64,43,indéterminé,"43 images, NDVI : 10e centile 0,34, 1 sous 0,25 (zone grise)",labourée,végétation basse entretenue,5756.0,19370.041659589628
+sortie 2023,3176489,,76683,1.82,49.85769,0.82115,41,31,indéterminé,"31 images, NDVI : 10e centile 0,34, 0 sous 0,25 (zone grise)",indéterminé,végétation basse entretenue,5756.0,19370.041659589628
+sortie 2023,5205992,,50237,1.6,48.81292,-1.37306,52,41,couvert permanent,"41 images, NDVI : 10e centile 0,43, 0 sous 0,25",labourée,végétation basse entretenue,5756.0,19370.041659589628
+sortie 2023,9516043,,50474,6.22,48.59996,-0.79213,52,38,couvert permanent,"38 images, NDVI : 10e centile 0,44, 0 sous 0,25",labourée,végétation basse entretenue,5756.0,19370.041659589628
+sortie 2023,7195019,,76691,3.03,49.62046,1.56563,64,39,couvert permanent,"39 images, NDVI : 10e centile 0,43, 0 sous 0,25",couvert permanent,végétation basse entretenue,5756.0,19370.041659589628
+sortie 2023,7445301,,27467,1.37,49.34428,0.491,32,23,indéterminé,"23 images, NDVI : 10e centile 0,35, 0 sous 0,25 (zone grise)",indéterminé,arbres,5756.0,19370.041659589628
+sortie 2023,7572999,,61145,1.73,48.57165,-0.67619,52,41,couvert permanent,"41 images, NDVI : 10e centile 0,45, 0 sous 0,25",couvert permanent,végétation basse entretenue,5756.0,19370.041659589628
+sortie 2023,2192921,,27656,4.9,49.36957,0.46108,32,25,couvert permanent,"25 images, NDVI : 10e centile 0,37, 0 sous 0,25",couvert permanent,végétation basse entretenue,5756.0,19370.041659589628
+sortie 2023,3459155,,14371,4.68,49.06159,0.21785,30,25,couvert permanent,"25 images, NDVI : 10e centile 0,41, 0 sous 0,25",couvert permanent,herbe et broussailles,5756.0,19370.041659589628
+sortie 2023,399406,,76289,2.38,49.59275,0.81838,45,22,couvert permanent,"22 images, NDVI : 10e centile 0,37, 1 sous 0,25",labourée,végétation basse entretenue,5756.0,19370.041659589628
+sortie 2023,3259389,,27206,1.04,48.80724,1.14323,55,43,indéterminé,"43 images, NDVI : 10e centile 0,31, 1 sous 0,25 (zone grise)",labourée,végétation basse entretenue,5756.0,19370.041659589628
+sortie 2023,4435901,,50300,1.28,48.69545,-1.05723,65,39,couvert permanent,"39 images, NDVI : 10e centile 0,40, 0 sous 0,25",labourée,végétation basse entretenue,5756.0,19370.041659589628
+sortie 2023,8077814,,14143,2.53,49.10214,-0.80879,52,37,couvert permanent,"37 images, NDVI : 10e centile 0,47, 0 sous 0,25",couvert permanent,végétation basse entretenue,5756.0,19370.041659589628
+sortie 2023,2396200,,50413,1.98,48.60034,-1.35994,52,34,couvert permanent,"34 images, NDVI : 10e centile 0,37, 0 sous 0,25",couvert permanent,végétation basse entretenue,5756.0,19370.041659589628
+sortie 2023,522260,,61284,2.72,48.57928,0.35058,38,24,couvert permanent,"24 images, NDVI : 10e centile 0,39, 1 sous 0,25",labourée,végétation basse entretenue,5756.0,19370.041659589628
+sortie 2023,4769995,,27103,5.96,49.36039,0.80519,32,24,couvert permanent,"24 images, NDVI : 10e centile 0,40, 0 sous 0,25",labourée,végétation basse entretenue,5756.0,19370.041659589628
+sortie 2023,6332040,,61491,1.59,48.58026,0.61247,38,28,couvert permanent,"28 images, NDVI : 10e centile 0,37, 1 sous 0,25",labourée,végétation basse entretenue,5756.0,19370.041659589628
+sortie 2023,6947083,,14425,1.46,49.09547,0.11668,55,46,couvert permanent,"46 images, NDVI : 10e centile 0,38, 0 sous 0,25",couvert permanent,herbe et broussailles,5756.0,19370.041659589628
+sortie 2023,5671038,,50359,1.48,48.60991,-0.9374,52,36,couvert permanent,"36 images, NDVI : 10e centile 0,44, 0 sous 0,25",couvert permanent,végétation basse entretenue,5756.0,19370.041659589628
+sortie 2023,5467437,,27554,2.66,49.10308,1.38927,50,39,couvert permanent,"39 images, NDVI : 10e centile 0,36, 0 sous 0,25",indéterminé,végétation basse entretenue,5756.0,19370.041659589628
+sortie 2023,6743131,,50079,1.61,49.54366,-1.66912,31,16,couvert permanent,"16 images, NDVI : 10e centile 0,38, 1 sous 0,25",labourée,végétation basse entretenue,5756.0,19370.041659589628
+30 parcelles,1141169,5.0,,7.69,49.32017,-1.08043,52,35,couvert permanent,"35 images, NDVI : 10e centile 0,49, 0 sous 0,25",labourée,végétation basse entretenue,,
+30 parcelles,1134018,2.0,,1.54,48.98556,-0.43153,52,36,indéterminé,"36 images, NDVI : 10e centile 0,34, 1 sous 0,25 (zone grise)",labourée,végétation basse entretenue,,
+30 parcelles,1168774,1.0,,1.41,49.19574,0.06878,55,41,couvert permanent,"41 images, NDVI : 10e centile 0,44, 1 sous 0,25",labourée,herbe et broussailles,,
+30 parcelles,1121367,6.0,,23.64,49.02256,0.08292,55,38,couvert permanent,"38 images, NDVI : 10e centile 0,40, 0 sous 0,25",labourée,herbe et broussailles,,
+30 parcelles,1180949,3.0,,2.3,49.27245,-0.20855,63,45,indéterminé,"45 images, NDVI : 10e centile 0,36, 0 sous 0,25 (zone grise)",labourée,végétation basse entretenue,,
+30 parcelles,2646907,7.0,,2.91,49.17274,0.70427,32,23,indéterminé,"23 images, NDVI : 10e centile 0,31, 0 sous 0,25 (zone grise)",labourée,végétation basse entretenue,,
+30 parcelles,2621322,11.0,,2.6,49.35791,0.47512,32,25,couvert permanent,"25 images, NDVI : 10e centile 0,38, 0 sous 0,25",couvert permanent,herbe et broussailles,,
+30 parcelles,2636334,12.0,,9.19,49.38914,0.65568,32,23,couvert permanent,"23 images, NDVI : 10e centile 0,40, 1 sous 0,25",labourée,végétation basse entretenue,,
+30 parcelles,2640602,9.0,,1.77,49.37601,0.82528,32,26,couvert permanent,"26 images, NDVI : 10e centile 0,37, 1 sous 0,25",labourée,arbres,,
+30 parcelles,2658246,8.0,,2.93,49.40996,0.74685,32,26,couvert permanent,"26 images, NDVI : 10e centile 0,38, 0 sous 0,25",labourée,végétation basse entretenue,,
+30 parcelles,5526153,16.0,,1.47,49.29026,-1.63189,31,22,couvert permanent,"22 images, NDVI : 10e centile 0,46, 0 sous 0,25",couvert permanent,végétation basse entretenue,,
+30 parcelles,10558939,17.0,,4.89,48.63156,-0.97569,52,38,couvert permanent,"38 images, NDVI : 10e centile 0,47, 0 sous 0,25",couvert permanent,végétation basse entretenue,,
+30 parcelles,5396655,15.0,,1.95,48.60356,-1.25063,52,38,couvert permanent,"38 images, NDVI : 10e centile 0,39, 0 sous 0,25",labourée,arbres,,
+30 parcelles,5397815,14.0,,1.22,48.79283,-1.30244,52,39,couvert permanent,"39 images, NDVI : 10e centile 0,44, 0 sous 0,25",labourée,végétation basse entretenue,,
+30 parcelles,5473529,18.0,,1.21,49.45222,-1.79035,31,23,couvert permanent,"23 images, NDVI : 10e centile 0,37, 0 sous 0,25",indéterminé,végétation basse entretenue,,
+30 parcelles,5451643,4.0,,1.69,48.78302,-0.99249,52,34,indéterminé,"34 images, NDVI : 10e centile 0,35, 0 sous 0,25 (zone grise)",indéterminé,arbres,,
+30 parcelles,6566337,20.0,,1.84,48.58333,-0.25474,72,49,couvert permanent,"49 images, NDVI : 10e centile 0,38, 0 sous 0,25",labourée,végétation basse entretenue,,
+30 parcelles,6541894,19.0,,5.55,48.39498,0.05266,35,27,indéterminé,"27 images, NDVI : 10e centile 0,36, 1 sous 0,25 (zone grise)",labourée,végétation basse entretenue,,
+30 parcelles,6500165,21.0,,2.33,48.83192,0.37701,32,26,couvert permanent,"26 images, NDVI : 10e centile 0,39, 0 sous 0,25",couvert permanent,végétation basse entretenue,,
+30 parcelles,6504022,22.0,,7.74,48.57975,0.80869,41,25,indéterminé,"25 images, NDVI : 10e centile 0,31, 0 sous 0,25 (zone grise)",labourée,herbe et broussailles,,
+30 parcelles,6532267,23.0,,1.65,48.67479,-0.18664,85,45,couvert permanent,"45 images, NDVI : 10e centile 0,37, 1 sous 0,25",labourée,végétation basse entretenue,,
+30 parcelles,10835542,24.0,,7.59,48.82431,0.28417,32,22,couvert permanent,"22 images, NDVI : 10e centile 0,42, 0 sous 0,25",labourée,herbe et broussailles,,
+30 parcelles,7985243,25.0,,5.68,49.46847,1.518,50,34,couvert permanent,"34 images, NDVI : 10e centile 0,37, 0 sous 0,25",indéterminé,végétation basse entretenue,,
+30 parcelles,8028173,27.0,,4.84,49.67362,1.51603,55,37,labourée,"37 images, NDVI : 10e centile 0,18, 14 sous 0,25 ; le plus bas le 2025-12-05 (0,14)",labourée,végétation basse entretenue,,
+30 parcelles,7994820,29.0,,4.45,49.4753,0.37564,32,23,indéterminé,"23 images, NDVI : 10e centile 0,35, 0 sous 0,25 (zone grise)",indéterminé,herbe et broussailles,,
+30 parcelles,8024333,28.0,,1.14,49.8209,0.5449,41,33,couvert permanent,"33 images, NDVI : 10e centile 0,43, 0 sous 0,25",couvert permanent,végétation basse entretenue,,
+30 parcelles,7995912,26.0,,2.5,49.76343,1.199,41,25,indéterminé,"25 images, NDVI : 10e centile 0,36, 0 sous 0,25 (zone grise)",labourée,arbres,,
+30 parcelles,12066494,10.0,,4.72,49.27019,0.60174,32,23,couvert permanent,"23 images, NDVI : 10e centile 0,38, 0 sous 0,25",labourée,végétation basse entretenue,,
+30 parcelles,12850743,13.0,,1.26,49.2144,-1.29858,52,35,couvert permanent,"35 images, NDVI : 10e centile 0,38, 0 sous 0,25",couvert permanent,végétation basse entretenue,,
+30 parcelles,13504377,30.0,,4.69,49.84094,1.72137,62,34,couvert permanent,"34 images, NDVI : 10e centile 0,36, 0 sous 0,25",indéterminé,végétation basse entretenue,,

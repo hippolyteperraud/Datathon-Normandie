@@ -1,25 +1,5 @@
-"""Touches humaines : illustration du bocage, chiffres à taille humaine, signature."""
+"""Touches humaines : illustration du bocage, pourquoi les prairies comptent, signature."""
 import streamlit as st
-
-from commun import nombre
-
-TERRAIN_HA = 0.714  # terrain de football réglementaire, 105 m x 68 m
-
-
-def terrains(ha):
-    """« 1 180 terrains de football »."""
-    return f"{nombre(round(ha / TERRAIN_HA, -1 if ha > 70 else 0))} terrains de football"
-
-
-@st.cache_data(show_spinner=False)
-def surface_caen():
-    from prairimetre.donnees import communes
-    c = communes()
-    return float(c.loc[c.insee == "14118"].geometry.area.sum() / 1e4)
-
-
-def fois_caen(ha):
-    return f"{nombre(ha / surface_caen(), 0)} fois la surface de la ville de Caen"
 
 
 def _haie(x0, x1, y, pas=18, r=9):

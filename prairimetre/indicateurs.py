@@ -1,4 +1,4 @@
-"""Indicateurs : compteur (combien, où, comment) et boussole (où agir, avec quel levier).
+"""Indicateurs : combien de prairies, où, comment elles disparaissent, et l'objectif 2030.
 
 Une seule façon de compter : on compare les prairies du début et de la fin d'une période
 (croisement direct des géométries). Les sommes année par année, qui comptent plusieurs fois une
@@ -20,7 +20,10 @@ import numpy as np
 import pandas as pd
 
 from .config import ANNEE_OBJECTIF, ANNEE_REFERENCE_OBJECTIF, CACHE, MIN_HA, RECENT, SORTIES, annees
-from .donnees import FAMILLES, ZONAGES, communes, habitats_prairiaux, prairies, rpg, zonage
+from .donnees import (FAMILLES, ZONAGES, communes, habitats_prairiaux, prairies, rpg, saa_region,
+                      sth, zonage)
+
+ANNEES_SAA_DEBUT = 2018  # années de la statistique agricole montrées avec le registre
 from .suivi import CATEGORIES, avec_commune, categorie, croiser, devenir, origine
 
 FLUX = {"culture": "culture", "non déclaré": "non_declare", "prairie temporaire": "temporaire"}
@@ -29,13 +32,6 @@ GROUPES_CULTURES = {
     6: "tournesol", 7: "autres oléagineux", 8: "protéagineux", 9: "lin, chanvre (fibres)",
     11: "gel", 14: "riz", 15: "légumineuses à grains", 16: "fourrages annuels (trèfle, luzerne…)",
     24: "autres cultures industrielles", 25: "légumes ou fleurs"}
-# Une action par mécanisme : les mêmes noms que dans l'application (Où agir, Carte des données)
-LEVIERS = {
-    "retournement": "payer le maintien des prairies",
-    "sortie de la déclaration": "vérifier d'abord",
-    "stable ou en gain": "s'appuyer sur les exemples",
-    "trop peu de prairies": "aucune (trop peu de prairies)",
-}
 
 
 def periodes():
@@ -194,10 +190,24 @@ def objectif():
     niveaux = pd.Series(list(s.depart) + [s.arrivee.iloc[-1]],
                         index=[int(p[:4]) for p in s.index] + [annees()[-1]])
     ref = niveaux.get(ANNEE_REFERENCE_OBJECTIF)
-    return pd.DataFrame({"annee": niveaux.index, "prairies_ha": niveaux.values,
-                         "reference_ha": ref, "annee_reference": ANNEE_REFERENCE_OBJECTIF,
-                         "annee_objectif": ANNEE_OBJECTIF,
-                         "ecart_ha": niveaux.values - ref if ref is not None else np.nan})
+    t = pd.DataFrame({"annee": niveaux.index, "prairies_ha": niveaux.values,
+                      "reference_ha": ref, "annee_reference": ANNEE_REFERENCE_OBJECTIF,
+                      "annee_objectif": ANNEE_OBJECTIF,
+                      "ecart_ha": niveaux.values - ref if ref is not None else np.nan})
+    # La mesure de l'objectif officiel (statistique agricole) : séries longues si elles sont là
+    # (superficie toujours en herbe et SAU), sinon le fichier annuel des prairies
+    s = saa_region()
+    if len(s):
+        a = s.loc[s.index >= ANNEES_SAA_DEBUT]
+        h = pd.DataFrame({"annee": a.index, "sth_ha": a.sth_ha.values, "sau_ha": a.sau_ha.values,
+                          "part_sth": a.part_sth.values})
+    else:
+        h = sth()
+        h = pd.DataFrame({"annee": h.index, "sth_ha": h.values})
+    t = t.merge(h, on="annee", how="outer")
+    for c in ("reference_ha", "annee_reference", "annee_objectif"):
+        t[c] = t[c].ffill().bfill()
+    return t.sort_values("annee").reset_index(drop=True)
 
 
 # --- Contexte agricole -------------------------------------------------------------------------
@@ -275,7 +285,6 @@ def table_communes():
     t["mecanisme"] = np.where(s_cult <= s_nd, "retournement", "sortie de la déclaration")
     t.loc[t.solde >= 0, "mecanisme"] = "stable ou en gain"
     t.loc[~valide, "mecanisme"] = "trop peu de prairies"
-    t["levier"] = t.mecanisme.map(LEVIERS)
 
     # Certitude : un retournement est déclaré en culture ; une sortie de la déclaration ne dit
     # pas ce qu'est devenue la parcelle (et la statistique agricole ne la voit pas toujours)
@@ -409,17 +418,6 @@ def table_captages(t):
 
 
 # --- Consultation à la demande (application) ---------------------------------------------------
-
-def flux_commune(insee):
-    """Entrées, sorties et solde d'une commune, année par année."""
-    A = annees()
-    lignes = {}
-    for a in A[:-1]:
-        t = _flux(a, a + 1, "insee")
-        if insee in t.index:
-            lignes[f"{a}-{a + 1}"] = t.loc[insee]
-    return pd.DataFrame(lignes).T.rename_axis("periode")
-
 
 def parcelles_commune(insee):
     """Prairies du début avec leur devenir dominant à la fin, et prairies apparues depuis avec

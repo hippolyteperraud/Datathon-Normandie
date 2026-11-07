@@ -6,8 +6,8 @@ import altair as alt
 import pandas as pd
 import streamlit as st
 
-from commun import (FLUX_COULEURS, bornes, deck, exiger_sorties, ha, hex_rgb, legende,
-                    motif_manquant, nombre, pct, table)
+from commun import (FLUX_COULEURS, bornes, deck, exiger_sorties, ha, hex_rgb, motif_manquant,
+                    nombre, pct, table)
 from prairimetre.config import RECENT
 from prairimetre.indicateurs import parcelles_commune
 

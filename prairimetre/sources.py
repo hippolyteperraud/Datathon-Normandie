@@ -11,6 +11,8 @@ Toute source peut aussi être importée depuis un fichier, même si elle a un ac
 Dans les chemins et les noms de couche, {annee}, {dep} et {millesime} sont remplacés à l'usage.
 « colonnes » : colonnes obligatoires, vérifiées à l'import (noms en minuscules).
 """
+from .config import REGION
+
 WFS_IGN = "https://data.geopf.fr/wfs/ows"
 WFS_SANDRE = "https://services.sandre.eaufrance.fr/geo/zgr"
 PATRINAT = "MNHN / PatriNat"
@@ -38,7 +40,7 @@ SOURCES = {
     # --- Sources annuelles : à retélécharger à chaque millésime -----------------------------
     "rpg": dict(
         mode="archive_ign", famille="RPG",
-        motif=r"_LAMB93_R28[-_]{annee}([-_]|$)",  # la version change (2-0, 2-2, 4-0...)
+        motif=rf"_LAMB93_{REGION}[-_]{{annee}}([-_]|$)",  # la version change (2-0, 2-2, 4-0...)
         membre=r"(?i)(rpg_parcelles|parcelles_graphiques)\.(gpkg|shp|shx|dbf|prj|cpg)$",
         secours="RPG.{annee}:parcelles_graphiques",  # WFS si l'archive n'est pas encore publiée
         fichier="rpg/rpg_{annee}.gpkg", producteur="IGN / ASP", licence=LO,
@@ -98,6 +100,10 @@ SOURCES = {
         "prairie-permanente-et-temporaire",
         colonnes=["date_mesure", "geocode_departement", "type_prairie", "numerateur",
                   "denominateur"]),
+    "saa_series": _manuel(
+        "agreste_saa/saa_region.csv", "Agreste (statistique agricole annuelle, séries longues)",
+        "https://agreste.agriculture.gouv.fr/agreste-web/disaron/SAA-SeriesLongues/detail/",
+        colonnes=["annee", "sth_exploitations", "sth_hors_exploitations", "sau_region"]),
     "habitats_natura2000": _manuel(
         "priorite/habitats_natura2000_occidentale.gpkg", "DREAL Normandie / CBN de Brest",
         "https://www.data.gouv.fr/datasets/carte-de-synthese-des-habitats-dans-les-sites-"
@@ -116,6 +122,4 @@ SOURCES = {
         "faunistique-et-floristique-de-type-1-de-normandie"),
 }
 
-ANNUELLES = [n for n, s in SOURCES.items() if s["annuelle"]]
-AUTOMATIQUES = [n for n, s in SOURCES.items() if s["mode"] != "manuel"]
 ZONAGES_WFS = [n for n, s in SOURCES.items() if s["mode"] == "wfs" and not s["annuelle"]]

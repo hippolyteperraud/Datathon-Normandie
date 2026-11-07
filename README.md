@@ -1,149 +1,104 @@
-# Importer les données (prairies)
-python importer_donnees.py --liste            # les 24 sources : quoi, qui, vers où
-python importer_donnees.py --puis-calculer    # tout récupérer (≈ 6,7 Go), puis recalculer
-python importer_donnees.py --seulement lucas  # une seule source
-
-********************************************
-
 # Prairimètre — Datathon Normandie 2026
 
-Documents : problématique et réponses [docs/03_problematique_et_reponses.pdf](docs/03_problematique_et_reponses.pdf),
-données [docs/donnees_projet.pdf](docs/donnees_projet.pdf), état de l'art [docs/etat_de_l_art.md](docs/etat_de_l_art.md),
-guide [docs/guide_utilisation.md](docs/guide_utilisation.md), descriptif
-[docs/Descriptif_projet_Prairimetre.docx](docs/Descriptif_projet_Prairimetre.docx), questions aux
-experts [docs/questions_experts.md](docs/questions_experts.md), avancement
-[docs/compte_rendu_avancement.md](docs/compte_rendu_avancement.md) et suivi des corrections
-[docs/suivi_corrections.md](docs/suivi_corrections.md).
+Le suivi des prairies permanentes de Normandie : combien on en perd vraiment, pourquoi, ce qui les
+retient et où agir. Hippolyte Perraud (INSA Rouen) et Mouhssine Bairoune (ENSI Caen).
 
-Outil de pilotage annuel du « zéro perte nette » de prairies permanentes en Normandie.
-Règle de l'application : une donnée n'est affichée que si elle change une décision.
+**Le rapport** : [docs/rapport/rapport_prairimetre.pdf](docs/rapport/rapport_prairimetre.pdf)
+(cartes, chiffres, méthode, limites). Il se régénère à partir des résultats :
+`python scripts/rapport.py`.
 
-## Fil rouge et périmètre
+## La problématique
 
-> Mesurer chaque année, parcelle par parcelle, où les prairies disparaissent et si les
-> protections les retiennent, pour dire à chaque acteur où agir.
+La Région s'est fixé **zéro perte nette de prairies permanentes en 2030** (Stratégie régionale pour
+la biodiversité, objectif III.5 : « maintenir autant de prairies permanentes entre 2021 et 2030 »,
+cible « 39 % de la Surface Agricole Utile, Agreste »). Sujet 2 du datathon : comprendre les
+interactions humain-nature pour mieux décider. Trois questions :
 
-Trois questions, pas une de plus :
+1. **Combien perd-on vraiment ?** La statistique agricole (la mesure officielle) et le registre PAC
+   ne disent pas la même chose ; l'écart vient surtout des exploitants âgés sortis de la PAC en 2023,
+   dont les prairies restent vertes, vu du satellite.
+2. **Les règles retiennent-elles les prairies ?** Là où une règle encadre le labour, on retourne
+   environ 5 fois moins, mais ces règles ne couvrent que 14 % des prairies.
+3. **Où agir ?** Une liste courte de communes où le retournement se concentre, les communes où aller
+   vérifier les prairies sorties de la déclaration (et ce que le satellite y voit déjà), les
+   communes exemples.
 
-1. **Combien perd-on, et pourquoi l'alerte ne sonne plus ?** → Où agir (en-tête et moyen 1)
-2. **Les protections retiennent-elles les prairies ?** (interaction humain-nature, sujet 2) → Où agir (moyen 2), preuves dans Données et méthode
-3. **Où agir, et avec qui ?** → Où agir, Ma commune, Carte des données (où il faut des données)
+Une seule méthode : les prairies déclarées une année sont croisées, parcelle par parcelle, avec les
+déclarations suivantes, en Normandie seulement. Toutes les données sont ouvertes.
 
-**Règle** : une donnée, un calcul ou un écran qui ne répond à aucune des trois questions sort
-du projet. Les données écartées sont rangées dans `data/_hors_perimetre/` (déplacées, pas
-supprimées). Hors périmètre volontaire : la prédiction, l'échelle de l'exploitation, les haies,
-le détail de l'artificialisation.
-
-L'application tourne **uniquement en local** : le serveur n'écoute que sur cette machine
-(`localhost`, voir `.streamlit/config.toml`). Internet ne sert qu'au fond de carte et au
-téléchargement des nouvelles données.
-
-## Installation
+## L'application
 
 ```
 pip install -r requirements.txt
+python -m streamlit run app/accueil.py      # puis http://localhost:8501 (local uniquement)
 ```
 
-## Récupérer toutes les données (un seul fichier)
-
-```
-python importer_donnees.py --liste            # les 24 sources utilisées : quoi, qui, vers où
-python importer_donnees.py --puis-calculer    # tout télécharger (≈ 6,7 Go), puis recalculer
-```
-
-Chaque source est cherchée à sa source officielle (service de téléchargement de l'IGN, API de
-data.gouv.fr, Eurostat), recadrée sur la Normandie, vérifiée et tracée dans `data/manifest.json`.
-
-## Ajouter des données (depuis la racine du projet)
-
-Trois cas, trois commandes. Tout est aussi faisable sans terminal, dans l'appli :
-« Données et méthode » → onglet « Moteur ».
-
-| Cas | Commande |
+| Onglet | Question |
 |---|---|
-| Savoir où on en est | `python -m prairimetre etat` |
-| Un nouveau RPG est sorti | `python -m prairimetre mettre-a-jour` (trouve seul la dernière année, télécharge, contrôle, recalcule ; environ 1 h). `--avec-officielle` ajoute la couche officielle des prairies (contrôle seulement, service très lent : ~6 h) |
-| Une source à télécharger à la main (communes, OCS GE, Cerema, LUCAS, zones humides, ZNIEFF 1) | `python -m prairimetre importer <source> <fichier>` puis `python -m prairimetre calculer` |
+| Objectif 2030 | Où en est l'objectif, selon la statistique agricole et selon le registre ? Pourquoi le registre perd plus (2019, 2023, sources officielles) ? Ce qui retient les prairies, ce qu'on ne sait pas |
+| Ma commune | Ce que sont devenues les prairies d'une commune, parcelle par parcelle |
+| Où aller voir | Les communes qui portent la moitié des sorties de la déclaration, et ce que le satellite y voit |
+| Prendre exemple | Les communes qui gagnent des prairies sur d'anciennes cultures, et celles qui n'en perdent pas |
+| Technique | Preuves, sources, mots, recalcul |
 
-`importer` accepte le fichier tel que téléchargé : GeoPackage, Shapefile, GeoJSON, CSV, ou
-l'archive .zip / .7z (le bon fichier y est cherché). Il met au format (colonnes, Lambert-93),
-garde la Normandie, vérifie les colonnes attendues, trace l'import dans `data/manifest.json` et
-vide le cache concerné. **Rien n'est remplacé si une vérification échoue.** Exemples :
+L'appli lit les tables de `sorties/` et de `verification/sentinel2/` ; aucun chiffre de résultat
+n'est écrit à la main. Les chiffres officiels cités sont dans `app/references.py`, avec leur source.
+Après une modification de `app/commun.py`, `app/humain.py` ou `app/references.py`, relancer le
+serveur.
 
-```
-python -m prairimetre importer communes ADMIN-EXPRESS-COG_2027.7z
-python -m prairimetre importer ocsge OCS-GE_14_2026.gpkg --dep 14 --millesime 2026
-python -m prairimetre importer conso_enaf conso_espaces_2011_2026.csv
-python -m prairimetre importer rpg RPG_R28_2026.7z --annee 2026   # si le service IGN est en panne
-```
-
-Autres commandes : `telecharger zonages` (rafraîchir tous les zonages WFS), `controler`,
-`calculer`, `evaluer [--rapide]`. Une nouvelle année ne recalcule que ce qui la concerne.
-
-## L'application (`app/`)
+## Les données et le moteur
 
 ```
-python -m streamlit run app/accueil.py   # puis ouvrir http://localhost:8501
+python importer_donnees.py --liste           # les sources : quoi, qui, vers où
+python importer_donnees.py --puis-calculer   # tout récupérer (environ 6,5 Go), puis calculer
+python -m prairimetre etat                   # ce qui est en local, ce qui est publié
+python -m prairimetre mettre-a-jour          # nouveau registre : télécharger, contrôler, recalculer
+python -m prairimetre calculer               # tables de résultats -> sorties/
+python -m prairimetre evaluer                # preuves : zonages, robustesse, statistique agricole…
 ```
 
-| Page | Question | Pour qui |
-|---|---|---|
-| Où agir (accueil) | Trois moyens d'agir : 1. suivre l'objectif 2030 en hectares, 2. payer le maintien des prairies là où l'on retourne (communes, intercommunalités ou aires de captage, avec leurs interlocuteurs), 3. s'appuyer sur les communes qui gardent leurs prairies. Pour chacun : le conseil, pourquoi, pour qui, où, l'indicateur de suivi | Région, chambre d'agriculture, DDT(M), PNR, syndicats d'eau, Agences de l'eau |
-| Ma commune | Combien d'hectares la commune a perdus, en tout et zone par zone (zones humides, sites protégés, captages…) ? « Ne sait pas » si la source ne dit rien | Élus, EPCI, habitants |
-| Carte des données | Où il en faudrait plus : l'état réel des prairies sorties de la déclaration (communes où la réponse change la décision de payer le maintien), les habitats prairiaux des départements sans cartographie | Région, DDT(M), jury, experts |
-| Données et méthode | Preuves (avec les tests qui les vérifient), sources, moteur (nouveau registre) | Jury, experts, équipe |
-| Technique | Les données qu'on a : une petite carte par source (registre PAC, occupation du sol, enquête au sol LUCAS, habitats Natura 2000), en noir là où une source ne dit rien ; trois chiffres ; les mots de l'outil | Jury, experts, équipe |
-
-Menu : un bandeau en haut de la page, toujours visible. Le fond de carte demande une connexion
-internet.
-
-L'appli lit les tables de `sorties/` (relues dès que le moteur les recalcule) et appelle le
-moteur de deux façons : en l'important (`parcelles_commune`) et en lançant ses commandes
-(`python -m prairimetre ...`).
-Pour ajouter une page : un fichier dans `app/vues/`, une ligne dans `app/accueil.py`.
-Données manquantes : jamais de case vide, toujours la raison (voir `app/commun.py`) ; sur les
-cartes, toujours en noir.
-Aucun conseil n'est écrit à la main : chaque phrase est calculée à partir de `sorties/`, et suit
-donc chaque nouveau registre. Les années affichées sont lues dans `sorties/` ; si un registre plus
-récent est téléchargé sans être calculé, chaque page le signale.
-Illustration, chiffres à taille humaine et signature : `app/humain.py`. Thème : `.streamlit/config.toml`.
-Après une modification de `app/commun.py` ou `app/humain.py`, relancer le serveur.
-
-## Le moteur (`prairimetre/`)
+Le guide pas à pas pour tout installer : [TESTER_APPLICATION.md](TESTER_APPLICATION.md).
 
 | Module | Rôle |
 |---|---|
-| `sources.py` | Catalogue : où se trouve chaque source, où elle va dans `data/`, colonnes attendues |
-| `telecharger.py` | Téléchargement, extraction, manifest (empreinte SHA-256), invalidation du cache |
-| `importer.py` | Import d'un fichier téléchargé à la main, pour n'importe quelle source |
-| `controles.py` | Contrôles de cohérence (valables pour une nouvelle année) et valeurs de référence |
-| `donnees.py` | Lecture des données avec cache GeoParquet |
-| `suivi.py` | Croisement des géométries d'une année à l'autre : devenir et origine de chaque prairie |
-| `indicateurs.py` | Compteur et boussole : comparaison directe début → fin, en Normandie seulement ; tables par commune et par aire de captage, objectif 2030, cultures de remplacement |
-| `evaluation.py` | Zonages par famille (règle, site, inventaire), concentration, prédiction, sensibilité aux seuils, certitude (OCS GE, LUCAS), statistique agricole annuelle, habitats prairiaux, maïs |
+| `prairimetre/config.py` | Réglages : région (`REGION`), départements, emprise, objectif 2030 (référence 2021) |
+| `prairimetre/sources.py`, `telecharger.py`, `importer.py`, `controles.py` | Catalogue des sources, téléchargement, import manuel, contrôles |
+| `prairimetre/donnees.py`, `suivi.py` | Lecture des données ; croisement des parcelles d'une année à l'autre |
+| `prairimetre/indicateurs.py` | Tables de résultats : communes, objectif 2030, suivi des sorties de la déclaration |
+| `prairimetre/evaluation.py` | Preuves : effet des zonages, robustesse, concentration, statistique agricole |
+| `prairimetre/sentinel.py` | Vérification par images Sentinel-2 |
 
-Tests : `python -m unittest discover tests` (petites données inventées, moins d'une seconde).
+Changer de région : les réglages de `config.py` (code de la région, départements, emprise).
 
-Paquet de remise, en local (rien n'est envoyé) : `python -m prairimetre livrer` écrit
-`livraison/prairimetre_<date>.zip` (code, résultats, manifest, documents ; `--avec-donnees`
-pour joindre `data/`). La durée de chaque calcul et le volume des données sont tracés dans
-`sorties/sobriete.csv`.
+## La vision satellite
 
-Réglages (`prairimetre/config.py`) : seuil de 20 ha par commune, période récente de 3 ans,
-année de référence de l'objectif 2030 (2022, à confirmer avec la Région).
+```
+python scripts/analyser_satellite_sentinel.py --sentinel   # échantillons et témoins (environ 15 min)
+```
+
+Images Sentinel-2 (Copernicus), lues sans compte via le catalogue public de Microsoft Planetary
+Computer : pour chaque parcelle, le NDVI de chaque image sans nuage de l'année. La règle (prairie
+restée verte ou parcelle labourée) est validée sur des parcelles dont le registre donne la réponse.
+Preuves parcelle par parcelle, avec un lien vers la photo aérienne IGN :
+[verification/sentinel2/preuves.md](verification/sentinel2/preuves.md). Étude de faisabilité :
+[verification/etude_faisabilite_satellite.md](verification/etude_faisabilite_satellite.md).
+
+## Tests
+
+```
+python -m unittest discover tests
+```
 
 ## Dossiers
 
-| Dossier | Contenu | Suivi par git |
-|---|---|---|
-| `importer_donnees.py` | Récupère toutes les données utilisées, en une commande | non commité |
-| `prairimetre/` | Moteur de calcul (Python) | non (exclu dans `.gitignore`) |
-| `app/` | Application Streamlit | non (exclu dans `.gitignore`) |
-| `tests/` | Tests automatisés du moteur | non commité |
-| `livraison/` | Paquet de remise (zip), créé à la demande par `livrer` | non commité |
-| `docs/` | Problématique et réponses, données, guide, état de l'art, descriptif, suivi | en partie |
-| `consignes/` | Documents des organisateurs | oui |
-| `data/` | Données lues par le moteur (environ 6 Go, voir `data/manifest.json`) | non |
-| `data/_hors_perimetre/` | Données écartées, gardées au cas où (3,8 Go) | non |
-| `cache/` | Fichiers intermédiaires, régénérables | non |
-| `sorties/` | Tables de résultats (CSV) | non |
+| Dossier | Contenu |
+|---|---|
+| `app/`, `prairimetre/` | Application et moteur (exclus par `.gitignore` : ajouter un nouveau fichier avec `git add -f`) |
+| `scripts/` | Rapport, vérification satellite |
+| `tests/` | Tests automatisés |
+| `verification/` | Résultats et preuves de la vérification satellite |
+| `docs/` | Rapport, audit du code, documents de travail |
+| `Consignes/` | Documents des organisateurs |
+| `data/`, `cache/`, `sorties/` | Données (environ 6,5 Go), fichiers intermédiaires, résultats : non suivis par git |
+
+Licence : voir [LICENSE](LICENSE).

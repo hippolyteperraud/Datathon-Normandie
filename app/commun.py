@@ -9,12 +9,11 @@ import re
 import subprocess
 import sys
 
-import numpy as np
 import pandas as pd
 import pydeck as pdk
 import streamlit as st
 
-from prairimetre.config import CACHE, DATA, MIN_HA, RACINE, RECENT, SORTIES, annees
+from prairimetre.config import CACHE, DATA, MIN_HA, RACINE, SORTIES, annees
 from prairimetre.sources import SOURCES
 
 TABLES = ["communes", "communes_zones", "serie_region", "captages", "communes_captages",
@@ -24,22 +23,19 @@ TABLES = ["communes", "communes_zones", "serie_region", "captages", "communes_ca
 OFFICIEL = {"perte_ha": -59703, "perte_pct": -8.9, "ratio_evol_pct": -1.97,
             "date": "septembre 2026",
             "source": "Arrêté du 11 septembre 2026, JORF n° 0218 du 18 septembre 2026"}
-# Baisse du ratio de prairies permanentes au-delà de laquelle la PAC soumet les retournements à
-# autorisation (règlement UE 2021/2115, BCAE 1)
+# Baisse du ratio de prairies permanentes au-delà de laquelle tout retournement est interdit et les
+# prairies retournées doivent être réimplantées (règlement délégué (UE) 2022/126, article 48)
 SEUIL_RATIO_PCT = 5
 
 DEPARTEMENTS = {"14": "Calvados", "27": "Eure", "50": "Manche", "61": "Orne",
                 "76": "Seine-Maritime"}
 # « les communes du Calvados », « de l'Eure »... (filtre Territoire des pages)
-DE_TERRITOIRE = {"Normandie": "de Normandie", "14": "du Calvados", "27": "de l'Eure",
-                 "50": "de la Manche", "61": "de l'Orne", "76": "de la Seine-Maritime"}
 
 # Palette catégorielle : contraste ≥ 3:1 sur les fonds clair et sombre (vert assombri pour
 # l'atteindre) ; chaque couleur est toujours doublée d'un libellé.
 CAT = ["#2a78d6", "#eb6834", "#169c6c"]
 NEUTRE = "#c3c2b7"
-# Cartes (fond de carte blanc) : les mêmes trois états partout
-NOIR = "#000000"     # pas de donnée : la source ne voit rien ici
+# Cartes (fond de carte blanc) : les mêmes états partout
 HORS = "#a9a89f"     # des données, mais hors de la liste affichée
 GRIS = "#6b6a65"     # pas de diagnostic : peu ou pas de prairies (villes, zones d'activité,
                      # communes de cultures). Le registre les couvre : ce n'est pas un manque
@@ -48,22 +44,11 @@ FLUX_COULEURS = {"culture": "#c2452d", "non déclaré": "#f0a202", "prairie temp
                  "prairie permanente": "#2e7d4f", "autre": "#5b5a55", "ajoutée": "#8a4fc4"}
 
 # Les noms et couleurs partagés par les pages : l'objectif 2030, la liste des communes qui portent
-# la moitié du retournement récent (utilisée par Où aller voir), la vérification. Une commune
-# relève de l'un d'eux selon le mécanisme dominant de ses pertes, calculé par le moteur.
+# la moitié du retournement récent (son nom est repris par Où aller voir), la vérification.
 ACTIONS = {
-    "suivre": {"titre": "Suivre l'objectif en hectares", "couleur": CAT[0],
-               "pour": "la Région, les DDT(M)"},
-    "payer": {"titre": "Communes où l'on retourne le plus", "couleur": CAT[0],
-              "pour": "la Région, la chambre d'agriculture, les Agences de l'eau, les "
-                      "intercommunalités",
-              "mecanisme": "retournement"},
-    "exemple": {"titre": "S'appuyer sur les exemples", "couleur": CAT[2],
-                "pour": "la chambre d'agriculture, les intercommunalités, les parcs naturels "
-                        "régionaux",
-                "mecanisme": "stable ou en gain"},
-    "verifier": {"titre": "Vérifier d'abord", "couleur": CAT[1],
-                 "pour": "la Région, les DDT(M)",
-                 "mecanisme": "sortie de la déclaration"},
+    "suivre": {"titre": "Suivre l'objectif en hectares", "couleur": CAT[0]},
+    "payer": {"titre": "Communes où l'on retourne le plus", "couleur": CAT[0]},
+    "verifier": {"titre": "Vérifier d'abord", "couleur": CAT[1]},
 }
 
 
@@ -103,15 +88,6 @@ def nom_propre(x):
     s = s.replace("L'", "l'").replace("D'", "d'")
     s = re.sub(r"\bAac\b", "AAC", s.replace("_", " "))
     return re.sub(r"\(([^)]*)\)", lambda m: f"({m.group(1).upper()})", s)
-
-
-def contact_captage(r):
-    """Premier interlocuteur connu d'une aire de captage : maître d'ouvrage, sinon service de
-    l'État, sinon Agence de l'eau du bassin (toujours connue)."""
-    for c in ("maitre_ouvrage", "service_etat", "agence_eau"):
-        if isinstance(r[c], str) and r[c]:
-            return nom_propre(r[c])
-    return "à identifier"
 
 
 def arrondi_ha(x):
@@ -155,21 +131,6 @@ def _evaluation(nom, _date, **kw):
     return pd.read_csv(SORTIES / f"evaluation_{nom}.csv", **kw)
 
 
-def etat_sorties():
-    """Ce que la carte d'occupation du sol (OCS GE) voit, l'année de leur sortie, sur les
-    prairies sorties de la déclaration : part restée en terre agricole, part construite. Cette
-    carte range prairies et cultures dans la même classe : elle ne dit pas si l'herbe est encore
-    là. None si l'évaluation manque."""
-    c = evaluation("certitude")
-    if c is None:
-        return None
-    o = c[c.source.str.startswith("OCS") & (c.groupe == "sorties de la déclaration")]
-    if o.empty:
-        return None
-    return {"agricole": (o["herbe, usage agricole"] * o.ha).sum() / o.ha.sum(),
-            "construit": (o["artificialisé"] * o.ha).sum() / o.ha.sum()}
-
-
 def bornes():
     """Première et dernière année des résultats affichés, lues dans sorties/ : les pages restent
     cohérentes même si un registre vient d'être téléchargé sans être encore calculé."""
@@ -203,9 +164,12 @@ def aides_chiffres():
                            "jusqu'en 2022, les PRL, devenues PPH à 94 % en 2023.",
             "Chiffre officiel": f"prairies permanentes au sens réglementaire de la PAC. "
                                 f"{OFFICIEL['source']}.",
-            "Ratio officiel": f"part des prairies dans la surface agricole. Au-delà de "
-                              f"{SEUIL_RATIO_PCT} % de baisse, les retournements sont soumis à "
-                              "autorisation."}
+            "Ratio officiel": f"part des prairies dans la surface agricole déclarée à la PAC, "
+                              f"comparée à 2018. Au-delà de 4 % de baisse, les exploitants doivent "
+                              f"compenser ; au-delà de {SEUIL_RATIO_PCT} %, tout retournement est "
+                              "interdit et les prairies retournées doivent être réimplantées "
+                              "(règlement délégué (UE) 2022/126, article 48 ; arrêté du 26 décembre "
+                              "2025)."}
 
 
 def chiffres_normandie():
@@ -294,16 +258,6 @@ def communes_carte():
     return _communes_carte(date_source("communes"))
 
 
-def epci_carte():
-    """Contours des intercommunalités (union de leurs communes), simplifiés, en WGS84."""
-    return _epci_carte(date_source("communes"))
-
-
-def captages_carte():
-    """Partie normande de chaque aire de captage, simplifiée, en WGS84."""
-    return _captages_carte(date_source("aires_alimentation_captages"))
-
-
 @st.cache_data(show_spinner="Préparation de la carte…")
 def _communes_carte(_date):
     def f():
@@ -314,41 +268,9 @@ def _communes_carte(_date):
     return _sur_disque("communes", f)
 
 
-@st.cache_data(show_spinner="Préparation de la carte…")
-def _epci_carte(_date):
-    def f():
-        from prairimetre.donnees import communes
-        g = communes()[["epci", "geometry"]].dissolve("epci").reset_index()
-        g["geometry"] = g.geometry.simplify(150, preserve_topology=True)
-        return g.to_crs(4326)
-    return _sur_disque("epci", f)
-
-
-@st.cache_data(show_spinner="Préparation de la carte des captages…")
-def _captages_carte(_date):
-    def f():
-        from prairimetre.donnees import region, zonage
-        a = zonage("aires_alimentation_captages")[["cdaac", "geometry"]].copy()
-        a["aac"] = a.cdaac.astype(str)
-        a = a.drop_duplicates("aac")
-        a["geometry"] = a.geometry.intersection(region().geometry.iloc[0]) \
-            .simplify(100, preserve_topology=True)
-        a = a[~a.geometry.is_empty]
-        return a[["aac", "geometry"]].to_crs(4326)
-    return _sur_disque("captages", f)
-
-
 def hex_rgb(h, alpha=220):
     h = h.lstrip("#")
     return [int(h[i:i + 2], 16) for i in (0, 2, 4)] + [alpha]
-
-
-def couleurs_liste(ids, dans_liste, avec_donnees, couleur):
-    """Couleur de chaque territoire d'une carte de liste : celle de l'action s'il est dans la
-    liste, gris clair s'il est classé mais reste hors liste, gris foncé s'il n'est pas classé
-    (trop peu de prairies)."""
-    return [hex_rgb(couleur) if i in dans_liste else hex_rgb(HORS, 200) if i in avec_donnees
-            else hex_rgb(GRIS, 230) for i in ids]
 
 
 def deck(couches, vue_sur, info, hauteur=560):

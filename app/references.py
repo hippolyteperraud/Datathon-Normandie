@@ -2,7 +2,24 @@
 exacte : ce ne sont pas des résultats du projet, mais ce qui permet de les comprendre. Ils ne sont
 affichés que si les données du moteur montrent l'année concernée comme à part."""
 
-# Le ratio officiel de prairies permanentes (BCAE 1), tel que publié chaque année au Journal officiel
+# L'objectif régional, tel qu'écrit dans la Stratégie régionale pour la biodiversité (SRB)
+OBJECTIF_REGIONAL = {
+    "objectif": "Atteindre zéro perte nette de prairies permanentes à l'échelle normande à "
+                "l'horizon 2030",
+    "cible": "Maintenir les prairies permanentes à 39 % de la Surface Agricole Utile (Agreste, 2020, "
+             "données 2019)",
+    "periode": "Maintenir autant de prairies permanentes entre 2021 et 2030",
+    "part_sau_pct": 39,
+    # La cible a été fixée sur les chiffres 2019 publiés en 2020 ; Agreste a depuis révisé ses
+    # séries (cohérence avec le recensement agricole 2020) : voir la part 2019 dans les séries longues
+    "annee_cible": 2019,
+    "texte": "Stratégie régionale pour la biodiversité Normandie 2030, objectif III.5, p. 47",
+    "lien": "https://www.normandie.fr/sites/default/files/2023-05/srb-normandie-fiches-objectifs.pdf",
+}
+
+# Le ratio officiel de prairies permanentes (BCAE 1), publié chaque année au Journal officiel. Il se
+# compare toujours à l'année 2018 (règlement délégué (UE) 2022/126, article 48)
+REFERENCE_RATIO = 2018
 RATIOS = [
     {"annee": 2023, "ratio_pct": 32.68, "reference_pct": 34.93, "evolution_pct": -6.45,
      "consequence": "autorisation préalable pour retourner une prairie, et obligation de "

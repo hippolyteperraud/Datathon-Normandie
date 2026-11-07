@@ -20,7 +20,7 @@ import geopandas as gpd
 import pandas as pd
 import pyogrio
 
-from .config import DATA, DEPARTEMENTS, MANIFEST
+from .config import DATA, DEPARTEMENTS, MANIFEST, REGION
 from .sources import SOURCES
 from .telecharger import destination, ecrire, extraire, invalider, normaliser_rpg, noter
 
@@ -116,6 +116,35 @@ def _recadrer(t, nom, annee):
     return t[t.intersects(region().geometry.iloc[0])]
 
 
+# Lignes de la feuille « TER » des séries longues de la statistique agricole (Agreste)
+SAA_LIGNES = {"27 -": "sth_exploitations", "30 -": "sth_hors_exploitations",
+              "28 -": "sau_exploitations", "33 -": "sau_region"}
+
+
+def _saa_series(fichier, dossier):
+    """Séries longues de la statistique agricole (archive .zip ou classeur régional .xlsx) : une
+    ligne par année pour la région (config.REGION) : superficie toujours en herbe des
+    exploitations et hors exploitations, SAU des exploitations et de la région."""
+    if fichier.suffix.lower() == ".zip":
+        with zipfile.ZipFile(fichier) as z:
+            membre = next((m for m in z.namelist() if re.search(r"(?i)regional.*\.xlsx$", m)), None)
+            if membre is None:
+                raise SystemExit("Pas de classeur régional (…regionales.xlsx) dans l'archive.")
+            fichier = Path(z.extract(membre, dossier))
+    t = pd.read_excel(fichier, sheet_name="TER", header=5)
+    code = REGION.lstrip("R")
+    t = t[t.LIB_REG2.astype(str).str.startswith(f"{code} -")]
+    lignes = {}
+    for debut, nom in SAA_LIGNES.items():
+        x = t[t.LIB_SAA.astype(str).str.startswith(debut)]
+        if len(x) != 1:
+            raise SystemExit(f"Ligne « {debut} » introuvable dans la feuille TER pour la région {code}.")
+        lignes[nom] = x.iloc[0]
+    annees = sorted(int(c[5:]) for c in t.columns if re.fullmatch(r"SURF_\d{4}", str(c)))
+    return pd.DataFrame({"annee": annees, **{nom: [pd.to_numeric(l[f"SURF_{a}"]) for a in annees]
+                                             for nom, l in lignes.items()}})
+
+
 def importer(nom, fichier, annee=None, dep=None, millesime=None):
     if nom not in SOURCES:
         raise SystemExit(f"Source inconnue : « {nom} ». Sources possibles : " + ", ".join(SOURCES))
@@ -132,6 +161,15 @@ def importer(nom, fichier, annee=None, dep=None, millesime=None):
 
     print(f"\n== import de {fichier.name} -> {nom}")
     with tempfile.TemporaryDirectory(dir=DATA.parent, prefix="tmp_") as tmp:
+        if nom == "saa_series":
+            t = _saa_series(fichier, tmp)
+            dest = destination(nom)
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            t.to_csv(dest, index=False)
+            noter(nom, dest, len(t), source=f"import de {fichier.name}")
+            invalider(nom)
+            print(f"   -> {dest.relative_to(DATA.parent)} ({len(t)} années, {t.annee.min()}-{t.annee.max()})")
+            return dest
         if fichier.suffix.lower() in (".zip", ".7z"):
             chemin = _choisir(_deballer(fichier, tmp), nom)
             print(f"   fichier retenu dans l'archive : {chemin.name}")

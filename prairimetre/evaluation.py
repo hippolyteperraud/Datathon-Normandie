@@ -12,6 +12,10 @@ Sorties (dossier sorties/) :
 - evaluation_saa.csv : RPG comparé à la statistique agricole annuelle (source indépendante) ;
 - evaluation_habitats.csv : habitats prairiaux d'intérêt européen (biodiversité) ;
 - evaluation_moteurs.csv : retournement selon la progression du maïs dans la commune.
+- evaluation_terrain.csv : les règles agissent-elles par elles-mêmes, ou parce qu'elles portent sur
+  des terrains peu labourés ? Comparaisons à terrain égal ;
+- evaluation_bcae2.csv : retournement année par année dans les zones de la BCAE 2 (en vigueur au
+  1er janvier 2025), avant et après.
 """
 import json
 
@@ -19,7 +23,8 @@ import numpy as np
 import pandas as pd
 
 from .config import DATA, MIN_HA, RECENT, SORTIES, annees
-from .donnees import FAMILLES, HABITATS_PRAIRIAUX, ZONAGES, habitats_prairiaux, ocsge, prairies, saa
+from .donnees import (FAMILLES, HABITATS_PRAIRIAUX, ZONAGES, habitats_prairiaux, ocsge, prairies,
+                      saa_region, sth)
 from .indicateurs import normandie, periodes, serie, zonages_annee
 from .suivi import croiser, devenir
 
@@ -194,11 +199,13 @@ def certitude(seuil=0.5):
 
 
 def comparaison_saa():
-    """Prairies permanentes : RPG (Normandie) et statistique agricole annuelle, année par année."""
+    """Prairies permanentes : RPG (Normandie) et statistique agricole annuelle, année par année. La
+    statistique agricole est la superficie toujours en herbe (sth), la mesure de l'objectif régional."""
     s = serie()
     rpg_niveau = pd.Series(list(s.depart) + [s.arrivee.iloc[-1]],
                            index=[int(p[:4]) for p in s.index] + [annees()[-1]])
-    a = saa().groupby("annee").niveau.sum()
+    s = saa_region()
+    a = s.sth_ha.astype(float) if len(s) else sth()
     t = pd.DataFrame({"rpg_ha": rpg_niveau, "saa_ha": a}).dropna()
     t["rpg_variation"] = t.rpg_ha.diff()
     t["saa_variation"] = t.saa_ha.diff()
@@ -246,7 +253,55 @@ def moteurs():
     return g
 
 
+ANNEE_BCAE2 = 2025  # BCAE 2 (zones humides et tourbières) : en vigueur au 1er janvier 2025
+
+
+def terrain():
+    """Les règles retiennent-elles l'herbe par elles-mêmes ? Chaque ligne compare deux groupes de
+    prairies de même nature, dans la même commune (rapport < 1 : on retourne moins dans le premier) :
+    - le terrain seul : prairies d'inventaire sans règle (ZNIEFF 1, zones humides) / le reste hors règle ;
+    - la règle à terrain égal : prairies sensibles (interdiction, BCAE 9) / autres prairies Natura 2000,
+      puis / autres prairies des zones humides."""
+    e, _ = _debut()
+    n2000 = e.z_natura2000_sic | e.z_natura2000_zps
+    tests = [
+        ("terrain seul", "inventaires sans règle / reste hors règle", ~e.z_regle,
+         e.z_znieff1 | e.z_zones_humides_dreal),
+        ("règle à terrain égal", "prairies sensibles / autres prairies Natura 2000", n2000,
+         e.z_prairies_sensibles),
+        ("règle à terrain égal", "prairies sensibles / autres prairies des zones humides",
+         e.z_zones_humides_dreal, e.z_prairies_sensibles),
+    ]
+    lignes = []
+    for test, comparaison, dans, groupe in tests:
+        x = e[dans]
+        r, m = _rapport_meme_commune(x, groupe[dans])
+        lignes.append({"test": test, "comparaison": comparaison, "rapport_meme_commune": r,
+                       "communes_mixtes": m, "ha_groupe": x.ha[groupe[dans]].sum()})
+    return pd.DataFrame(lignes)
+
+
+def bcae2():
+    """Retournement année par année dans les zones de la BCAE 2 et ailleurs : la règle (au plus un
+    labour en 4 ans depuis 2025) change-t-elle quelque chose, ou ces prairies étaient-elles déjà peu
+    retournées avant ?"""
+    A = annees()
+    lignes = []
+    for a in A[:-1]:
+        z, d = zonages_annee(a), devenir(a, a + 1)
+        x = normandie(z.assign(retourne=d.culture.values))
+        dans = x.z_bcae_zones_humides_tourbieres
+        r, _ = _rapport_meme_commune(x, dans)
+        lignes.append({"periode": f"{a}-{a + 1}", "regle_en_vigueur": a + 1 >= ANNEE_BCAE2,
+                       "taux_dedans": x.retourne[dans].sum() / x.ha[dans].sum(),
+                       "taux_dehors": x.retourne[~dans].sum() / x.ha[~dans].sum(),
+                       "rapport_meme_commune": r})
+    return pd.DataFrame(lignes)
+
+
 def evaluer(avec_certitude=True):
+    terrain().to_csv(SORTIES / "evaluation_terrain.csv", index=False)
+    bcae2().to_csv(SORTIES / "evaluation_bcae2.csv", index=False)
     zonages().to_csv(SORTIES / "evaluation_zonages.csv")
     classes().to_csv(SORTIES / "evaluation_classes.csv")
     robustesse().to_csv(SORTIES / "evaluation_robustesse.csv", index=False)

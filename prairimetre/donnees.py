@@ -20,8 +20,6 @@ FAMILLES = {
     "site": ["natura2000_sic", "natura2000_zps", "rnn", "rnr", "apb", "cen"],
     "inventaire": ["zones_humides_dreal", "znieff1", "srce_reservoirs", "plu_zone_n"],
 }
-NOMS_FAMILLES = {"regle": "règle qui encadre le retournement", "site": "site naturel protégé",
-                 "inventaire": "inventaire ou zone N de PLU (sans effet sur le labour)"}
 ZONAGES_ENJEUX = [n for f in FAMILLES.values() for n in f]
 # Zonages qui désignent un acteur sans protéger la prairie (question 3 : avec qui agir ?)
 ZONAGES_ACTEURS = ["aires_alimentation_captages", "pnr"]
@@ -133,14 +131,39 @@ def habitats_prairiaux():
     return en_cache("habitats_prairiaux", f)
 
 
-def saa():
-    """Statistique agricole annuelle : prairies permanentes productives par département et par
-    année (source indépendante du RPG). Niveau reconstitué : base de l'année + variation."""
-    t = pd.read_csv(DATA / SOURCES["saa_prairies"]["fichier"], dtype={"geocode_departement": str})
-    t = t[t.type_prairie == "Prairies naturelles ou semées depuis plus de 5 ans"].copy()
+def saa_region():
+    """Séries longues de la statistique agricole pour la région, par année : superficie toujours en
+    herbe (STH) totale et SAU de la région. La mesure de l'objectif régional (SRB, III.5 : « 39 % de
+    la Surface Agricole Utile, Agreste ») est la part de la STH dans la SAU. Vide si absent."""
+    f = DATA / SOURCES["saa_series"]["fichier"]
+    if not f.exists():
+        return pd.DataFrame(columns=["sth_ha", "sau_ha", "part_sth"])
+    t = pd.read_csv(f).set_index("annee")
+    out = pd.DataFrame({"sth_ha": t.sth_exploitations + t.sth_hors_exploitations,
+                        "sau_ha": t.sau_region})
+    out["part_sth"] = out.sth_ha / out.sau_ha
+    return out
+
+
+def sth():
+    """Superficie toujours en herbe (STH) de la statistique agricole annuelle, Normandie, par
+    année : prairies naturelles ou semées depuis plus de 5 ans, STH peu productives et STH non
+    productives subventionnées. C'est la source de l'objectif régional (SRB, objectif III.5 :
+    « 39 % de la Surface Agricole Utile, Agreste »). Chaque ligne du fichier donne le niveau de
+    l'année précédente (dénominateur) et sa variation (numérateur) : la première année du fichier
+    donne aussi le niveau de l'année d'avant. Série vide si le fichier manque."""
+    f = DATA / SOURCES["saa_prairies"]["fichier"]
+    if not f.exists():
+        return pd.Series(dtype=float)
+    t = pd.read_csv(f, dtype={"geocode_departement": str})
+    t = t[t.type_prairie.str.startswith(("Prairies naturelles", "STH"))].copy()
     t["annee"] = t.date_mesure.str[:4].astype(int)
-    t["niveau"] = pd.to_numeric(t.denominateur) + pd.to_numeric(t.numerateur)
-    return t.rename(columns={"geocode_departement": "dep"})[["annee", "dep", "niveau"]]
+    for c in ("numerateur", "denominateur"):
+        t[c] = pd.to_numeric(t[c])
+    niveaux = (t.numerateur + t.denominateur).groupby(t.annee).sum()
+    premiere = int(t.annee.min())
+    niveaux.loc[premiere - 1] = t.loc[t.annee == premiere, "denominateur"].sum()
+    return niveaux.sort_index()
 
 
 def ocsge(dep, millesime):
