@@ -75,3 +75,39 @@ else:
     phrase += ", mais la statistique agricole, qui compte toute l'herbe, ne les perd pas."
 st.markdown(phrase)
 st.caption("Le détail (2019, 2023, ratio de la PAC, vérification par satellite) : Technique.")
+
+# --- Ce qu'il faut faire : quatre actions, chacune tirée des résultats et prouvée dans un onglet -----
+from commun import communes_moitie, comparaison, evaluation  # noqa: E402
+
+terrain, zon = evaluation("terrain"), evaluation("zonages", index_col=0)
+t = table("communes")
+st.subheader("Ce qu'il faut faire")
+actions = [(None,
+            f"**Suivre l'objectif avec la bonne mesure** : la part de l'herbe dans la surface agricole "
+            f"(statistique agricole), chaque année. Le registre PAC dit où et comment on perd, pas "
+            f"combien ; le ratio de la PAC ne donne plus l'alerte.")]
+if terrain is not None and zon is not None:
+    r = terrain.set_index("comparaison").rapport_meme_commune
+    _, aac = comparaison("aires_alimentation_captages")
+    actions.append(("vues/regles.py",
+                    f"**Étendre la protection contre le retournement** : à terrain égal, l'interdiction "
+                    f"divise le retournement par {nombre(1 / r[r.index.str.contains('Natura')].iloc[0], 0)} à "
+                    f"{nombre(1 / r[r.index.str.contains('zones humides')].iloc[0], 0)}, mais ne couvre que "
+                    f"{nombre(100 * zon.loc['prairies_sensibles', 'part_des_prairies'], 0)} ha de prairies sur "
+                    "100" + (" ; au-dessus des captages d'eau potable, rien ne retient l'herbe." if len(aac) and
+                             0.85 < aac.mean() < 1.2 else ".")))
+actions.append(("vues/agir.py",
+                f"**Commencer par {nombre(len(communes_moitie(t)))} communes**, qui portent la moitié du "
+                "retournement récent, et s'appuyer sur les communes exemples, qui gagnent ou gardent "
+                "leurs prairies."))
+actions.append(("vues/technique.py",
+                "**Vérifier chaque année par satellite les prairies sorties de la PAC** avant de les compter "
+                "comme perdues : la plupart restent vertes, sans labour."))
+for page, texte in actions:
+    g, d = st.columns([6, 1], vertical_alignment="center")
+    g.markdown(texte)
+    if page:
+        try:  # le lien n'existe que dans l'appli lancée par accueil.py (menu)
+            d.page_link(page, label="Voir", icon=":material/arrow_forward:")
+        except st.errors.StreamlitAPIException:
+            pass
