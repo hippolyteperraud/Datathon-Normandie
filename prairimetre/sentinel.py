@@ -460,36 +460,84 @@ def communes_a_aller_voir():
     return [i for i in moitie if i not in liste], [i for i in moitie if i in liste]
 
 
-def verifier_communes(annee=2025, travailleurs=10):
-    """Mesure, image par image, chaque prairie de 2018 d'au moins 1 ha sortie à 90 % ou plus de la
-    déclaration en 2025, dans les communes à aller voir (prioritaires d'abord). Reprend là où il
-    s'est arrêté : chaque parcelle mesurée est écrite aussitôt dans communes_parcelles.csv."""
+# Le bloc des mesures satellite : une ligne par parcelle (communes_parcelles.csv), une ligne par
+# parcelle et par image (communes_images.csv). Une parcelle déjà mesurée n'est jamais redemandée :
+# relancer sur d'autres communes ne mesure que les nouvelles parcelles.
+FICHIER_VERROU = DOSSIER / "en_cours.json"
+VERROU_PERIME_S = 600     # sans nouvelle depuis 10 min, le calcul est considéré comme arrêté
+SECONDES_PAR_PARCELLE = 3.5  # mesuré : environ 17 parcelles par minute avec 10 requêtes parallèles
+
+
+def parcelles_cibles(insees):
+    """Les prairies de 2018 d'au moins 1 ha sorties à 90 % ou plus de la déclaration en 2025, dans les
+    communes données : index de prairies(2018), commune et surface (sans géométrie)."""
+    from .suivi import devenir
+    d = devenir(2018, 2025)
+    m = d.insee.isin(list(insees)) & (d.ha >= 1) & (d["non déclaré"] > 0.9 * d.ha)
+    return d.loc[m.values, ["insee", "ha"]]
+
+
+def deja_mesurees():
+    """Identifiants des parcelles déjà dans le bloc des mesures."""
+    if not FICHIER_COMMUNES.exists():
+        return set()
+    return set(pd.read_csv(FICHIER_COMMUNES, dtype={"id_rpg": str}, usecols=["id_rpg"]).id_rpg)
+
+
+def avancement():
+    """Le calcul en cours, s'il y en a un (lu par l'application) : None sinon."""
+    if not FICHIER_VERROU.exists():
+        return None
+    try:
+        a = json.loads(FICHIER_VERROU.read_text(encoding="utf-8"))
+    except (ValueError, OSError):
+        return None
+    return a if time.time() - a.get("maj", 0) < VERROU_PERIME_S else None
+
+
+def _noter_avancement(**champs):
+    a = {**(json.loads(FICHIER_VERROU.read_text(encoding="utf-8")) if FICHIER_VERROU.exists() else {}),
+         **champs, "maj": time.time()}
+    FICHIER_VERROU.write_text(json.dumps(a, ensure_ascii=False), encoding="utf-8")
+
+
+def verifier_communes(insees=None, annee=2025, travailleurs=10):
+    """Mesure, image par image, chaque prairie sortie de la déclaration (voir parcelles_cibles) dans
+    les communes données ; par défaut, les communes à aller voir (prioritaires d'abord). Seules les
+    parcelles absentes du bloc sont mesurées ; chacune y est écrite aussitôt. Un seul calcul à la
+    fois (verrou en_cours.json, qui sert aussi à suivre l'avancement)."""
     import threading
 
     from .donnees import prairies
-    from .suivi import devenir
+    if avancement():
+        raise SystemExit("Une vérification satellite est déjà en cours : attendre qu'elle finisse.")
     prio, second = communes_a_aller_voir()
-    d = devenir(2018, 2025)
-    m = d.insee.isin(prio + second) & (d.ha >= 1) & (d["non déclaré"] > 0.9 * d.ha)
-    g = prairies(2018).loc[d.index[m.values], ["id_parcel", "geometry"]].copy()
-    g["insee"], g["ha"] = d.loc[g.index, "insee"].values, d.loc[g.index, "ha"].values
-    g["priorite"] = np.where(g.insee.isin(prio), "prioritaire", "secondaire")
-    g = g.sort_values(["priorite", "insee"])
+    if insees is None:
+        insees = prio + second
+    cibles = parcelles_cibles(insees)
+    g = prairies(2018).loc[cibles.index, ["id_parcel", "geometry"]].copy()
+    g["insee"], g["ha"] = cibles.insee.values, cibles.ha.values
+    g["priorite"] = np.select([g.insee.isin(prio), g.insee.isin(second)],
+                              ["prioritaire", "secondaire"], "autre")
     g["id_rpg"] = g.id_parcel.astype(str)
-    faits = set()
-    if FICHIER_COMMUNES.exists():
-        faits = set(pd.read_csv(FICHIER_COMMUNES, dtype={"id_rpg": str}).id_rpg)
-    reste = g[~g.id_rpg.isin(faits)]
+    faits = deja_mesurees()
+    reste = g[~g.id_rpg.isin(faits)].sort_values(["priorite", "insee"])
+    print(f"{len(g)} parcelles dans {len(set(insees))} communes, {len(g) - len(reste)} déjà mesurées, "
+          f"{len(reste)} à mesurer (environ {len(reste) * SECONDES_PAR_PARCELLE / 60:.0f} min)", flush=True)
+    if reste.empty:
+        return
     wgs = reste.to_crs(4326)
     verrou = threading.Lock()
     DOSSIER.mkdir(parents=True, exist_ok=True)
+    compte = {"faits": 0}
+    _noter_avancement(total=len(reste), faits=0, communes=len(set(insees)), debut=time.time())
 
     def un(i):
         r = reste.iloc[i]
         geo = json.loads(json.dumps(wgs.geometry.iloc[i].__geo_interface__))
         try:
             p = profil(geo, annee)
-        except Exception as e:  # le catalogue lui-même ne répond pas : la parcelle sera reprise
+        except Exception as e:  # le catalogue ne répond pas : la parcelle sera reprise au prochain lancement
             print(f"{r.id_rpg} : {str(e)[:80]}", flush=True)
             return
         etat, raison = classer(p)
@@ -505,9 +553,13 @@ def verifier_communes(annee=2025, travailleurs=10):
                 p.assign(id_rpg=r.id_rpg).to_csv(FICHIER_COMMUNES_IMAGES, mode="a", index=False,
                                                   header=not FICHIER_COMMUNES_IMAGES.exists(),
                                                   encoding="utf-8")
+            compte["faits"] += 1
+            _noter_avancement(faits=compte["faits"])
 
-    print(f"{len(g)} parcelles, {len(faits)} déjà faites, {len(reste)} à mesurer", flush=True)
-    with ThreadPoolExecutor(travailleurs) as pool:
-        for k, _ in enumerate(pool.map(un, range(len(reste))), 1):
-            if k % 100 == 0:
-                print(f"{k} / {len(reste)}", flush=True)
+    try:
+        with ThreadPoolExecutor(travailleurs) as pool:
+            for k, _ in enumerate(pool.map(un, range(len(reste))), 1):
+                if k % 100 == 0:
+                    print(f"{k} / {len(reste)}", flush=True)
+    finally:
+        FICHIER_VERROU.unlink(missing_ok=True)

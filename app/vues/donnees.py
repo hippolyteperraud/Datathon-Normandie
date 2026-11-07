@@ -141,7 +141,7 @@ else:
 
     classes = {"restées vertes": VERT_SAT, "à préciser": VERT_CLAIR, "labours vus": ROUGE_SAT}
     gs = communes_carte().copy()
-    gs = gs[gs.insee.isin(moitie)].copy()
+    gs = gs[gs.insee.isin(set(moitie) | set(mesures.insee))].copy()
     gs["verdict"] = gs.insee.map(par.verdict).fillna("pas encore mesurée")
     gs["couleur"] = [hex_rgb(classes[v]) if v in classes else hex_rgb(HORS, 200) for v in gs.verdict]
     gs["valeur"] = [f"{v} : {nombre(100 * par.part[i], 0)} ha sur 100 restés verts "

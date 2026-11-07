@@ -84,6 +84,24 @@ with c5.container(border=True, height="stretch"):
         f'<div style="font-size:2.25rem;line-height:1.3;color:{couleur_evol}">{texte_evol}</div>',
         unsafe_allow_html=True)
 
+# Vu du satellite : ce que sont devenues les prairies sorties de la déclaration, si elles sont mesurées
+try:
+    from prairimetre.sentinel import FICHIER_COMMUNES
+    mes = pd.read_csv(FICHIER_COMMUNES, dtype={"insee": str, "id_rpg": str})
+    mes = mes[mes.insee == insee]
+except FileNotFoundError:
+    mes = pd.DataFrame()
+if len(mes):
+    tr = mes[mes.etat != "indéterminé"]
+    vert = tr.loc[tr.etat == "couvert permanent", "ha"].sum()
+    lab = tr.loc[tr.etat == "labourée", "ha"].sum()
+    st.markdown(f"**Vu du satellite ({an})** : sur {nombre(len(mes))} prairies sorties de la déclaration "
+                f"mesurées, **{ha(vert)} sont restés verts toute l'année**, {ha(lab)} ont été labourés"
+                + (f", {nombre(len(mes) - len(tr))} indéterminées (nuages)" if len(mes) > len(tr) else "")
+                + ".")
+elif r.devenues_non_declare >= 1:
+    st.caption("Prairies sorties pas encore vérifiées par satellite (Technique → Recalculer).")
+
 # --- Carte des prairies : la légende est le filtre -------------------------------------------------
 st.subheader("Carte des prairies")
 bouton_details = st.button("Détails de la commune", icon=":material/info:", key="details")

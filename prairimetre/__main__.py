@@ -14,6 +14,7 @@ Les commandes détaillées :
     calculer                      compteur et boussole -> sorties/
     evaluer [--rapide]            zonages, concentration, prédiction, certitude, SAA...
     livrer [--avec-donnees]       paquet de remise local (zip) : code, résultats, manifest
+    satellite [--communes INSEE]  vérifier par satellite les prairies sorties de la déclaration
 """
 import argparse
 import sys
@@ -133,6 +134,11 @@ def mettre_a_jour(args):
     evaluer(args)
 
 
+def satellite(args):
+    from .sentinel import verifier_communes
+    verifier_communes(args.communes or None, annee=args.annee)
+
+
 def main():
     p = argparse.ArgumentParser(prog="python -m prairimetre", description=__doc__,
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -161,6 +167,10 @@ def main():
     e = sp.add_parser("evaluer")
     e.add_argument("--rapide", action="store_true", help="sans le test de certitude (OCS GE)")
     e.set_defaults(f=evaluer)
+    sa = sp.add_parser("satellite", help="vérifier par images Sentinel-2 les prairies sorties")
+    sa.add_argument("--communes", nargs="*", help="codes INSEE ; par défaut les communes à aller voir")
+    sa.add_argument("--annee", type=int, default=2025)
+    sa.set_defaults(f=satellite)
     lv = sp.add_parser("livrer")
     lv.add_argument("--avec-donnees", action="store_true", help="joindre data/ (plusieurs Go)")
     lv.set_defaults(f=livrer)
