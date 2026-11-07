@@ -84,23 +84,16 @@ with c5.container(border=True, height="stretch"):
         f'<div style="font-size:2.25rem;line-height:1.3;color:{couleur_evol}">{texte_evol}</div>',
         unsafe_allow_html=True)
 
-# Vu du satellite : ce que sont devenues les prairies sorties de la déclaration, si elles sont mesurées
-try:
-    from prairimetre.sentinel import FICHIER_COMMUNES
-    mes = pd.read_csv(FICHIER_COMMUNES, dtype={"insee": str, "id_rpg": str})
-    mes = mes[mes.insee == insee]
-except FileNotFoundError:
-    mes = pd.DataFrame()
-if len(mes):
-    tr = mes[mes.etat != "indéterminé"]
-    vert = tr.loc[tr.etat == "couvert permanent", "ha"].sum()
-    lab = tr.loc[tr.etat == "labourée", "ha"].sum()
-    st.markdown(f"**Vu du satellite ({an})** : sur {nombre(len(mes))} prairies sorties de la déclaration "
-                f"mesurées, **{ha(vert)} sont restés verts toute l'année**, {ha(lab)} ont été labourés"
-                + (f", {nombre(len(mes) - len(tr))} indéterminées (nuages)" if len(mes) > len(tr) else "")
-                + ".")
+# Vu du satellite : ce que sont devenues les prairies sorties de la déclaration
+from prairimetre.sentinel import resume_mesures  # noqa: E402
+
+vu = resume_mesures(insee) if r.devenues_non_declare >= 1 else None
+if vu and vu["ha_verts"] + vu["ha_laboures"] > 0:
+    st.markdown(f"**Vu du satellite ({an})** : des prairies sorties de la déclaration, "
+                f"**{ha(vu['ha_verts'])} sont restés verts** toute l'année, {ha(vu['ha_laboures'])} ont été "
+                f"labourés ({ha(vu['ha'])} mesurés, parcelles d'au moins 1 ha).")
 elif r.devenues_non_declare >= 1:
-    st.caption("Prairies sorties pas encore vérifiées par satellite (Technique → Recalculer).")
+    st.caption("Prairies sorties de la déclaration : pas encore vérifiées par satellite.")
 
 # --- Carte des prairies : la légende est le filtre -------------------------------------------------
 st.subheader("Carte des prairies")

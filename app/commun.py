@@ -77,28 +77,6 @@ def variation(x, unite="ha", dec=0):
     return f"{'-' if x < 0 else '+'}{nombre(abs(x), dec)} {unite}".strip()
 
 
-def nom_propre(x):
-    """« SYNDICAT DES EAUX (SITE) » -> « Syndicat des Eaux (SITE) » ; les sigles entre
-    parenthèses restent en majuscules, les noms déjà en casse mixte ne changent pas."""
-    if not (isinstance(x, str) and x.isupper()):
-        return x
-    s = x.title()
-    for mot in ("De", "Des", "Du", "Et", "La", "Le", "En"):
-        s = s.replace(f" {mot} ", f" {mot.lower()} ")
-    s = s.replace("L'", "l'").replace("D'", "d'")
-    s = re.sub(r"\bAac\b", "AAC", s.replace("_", " "))
-    return re.sub(r"\(([^)]*)\)", lambda m: f"({m.group(1).upper()})", s)
-
-
-def arrondi_ha(x):
-    """Ordre de grandeur pour les phrases : 60 050 -> « 60 000 »."""
-    if abs(x) >= 10000:
-        return nombre(round(x, -3))
-    if abs(x) >= 1000:
-        return nombre(round(x, -2))
-    return nombre(round(x))
-
-
 # --- Lecture des sorties du moteur ------------------------------------------------------------
 
 def manquantes():
@@ -173,18 +151,21 @@ def aides_chiffres():
 
 
 def chiffres_normandie():
-    """Les trois chiffres de la région, sur toutes les pages, au même niveau que le menu. Sur un écran
-    trop étroit pour les deux, ils passent sous le menu. Rien tant que le moteur n'a pas produit ses
-    résultats."""
+    """Les trois chiffres de l'objectif régional (mesure officielle), sur toutes les pages, au même niveau
+    que le menu. Sur un écran trop étroit, ils passent sous le menu. Rien tant que le moteur n'a pas
+    produit ses résultats."""
     if manquantes():
         return
-    a0, an = bornes()
-    bil = table("bilan_direct").loc["région"]
-    solde = bil[("nouvelles_venant_de", "arrivee")] - bil[("disparues_devenues", "depart")]
-    aides = aides_chiffres()
-    cases = [(ha(solde, signe=True), f"Prairimètre, {a0}→{an}", aides["Prairimètre"]),
-             (ha(OFFICIEL["perte_ha"], signe=True), "Chiffre officiel", aides["Chiffre officiel"]),
-             (f"{nombre(OFFICIEL['ratio_evol_pct'], 2)} %", "Ratio officiel", aides["Ratio officiel"])]
+    o = table("objectif").set_index("annee")
+    if "part_sth" not in o or o.part_sth.dropna().empty:
+        return
+    a_ref, a_obj = int(o.annee_reference.iloc[0]), int(o.annee_objectif.iloc[0])
+    herbe, part = o.sth_ha.dropna(), o.part_sth.dropna()
+    fin = int(herbe.index.max())
+    source = "statistique agricole annuelle (Agreste), superficie toujours en herbe ; dernière année provisoire"
+    cases = [(ha(herbe.loc[fin] - herbe.loc[a_ref], signe=True), f"prairies, {a_ref}→{fin}", source),
+             (pct(part.loc[fin], 1), f"de la surface agricole en herbe, {fin}", source),
+             ("0 perte nette", f"objectif {a_obj}", "Stratégie régionale pour la biodiversité, objectif III.5")]
     st.markdown(
         "<style>"
         ".chiffres-normandie {display:flex;align-items:center;gap:1.4rem;position:fixed;top:0;"
@@ -290,15 +271,6 @@ def deck(couches, vue_sur, info, hauteur=560):
                     tooltip={"html": info, "style": {"fontSize": "12px"}})
 
 
-def legende(elements):
-    """Légende en HTML : liste de (couleur hex, libellé)."""
-    st.markdown(" ".join(
-        f'<span style="display:inline-flex;align-items:center;margin-right:14px;font-size:0.85rem">'
-        f'<span style="width:12px;height:12px;border-radius:3px;background:{c};'
-        f'border:1px solid rgba(128,128,128,0.45);display:inline-block;margin-right:6px"></span>'
-        f'{l}</span>' for c, l in elements), unsafe_allow_html=True)
-
-
 def selection_carte(evenement, couche, champ):
     """Valeur du champ de l'objet cliqué sur la carte, ou None."""
     if evenement and evenement.selection:
@@ -312,25 +284,6 @@ def selection_carte(evenement, couche, champ):
 
 # Graduations d'axe à la française (« 620 000 », « −20 000 ») : Vega écrirait « 620k »
 AXE_FR = "replace(format(datum.value, ',.0f'), regexp(',', 'g'), ' ')"
-
-
-def classement(noms, valeurs, couleur, titre_x, en_pct=False):
-    """Barres horizontales triées, une par ligne, valeur écrite au bout de la barre
-    (hectares, ou pourcentage si en_pct)."""
-    import altair as alt
-    d = pd.DataFrame({"nom": list(noms), "ha": list(valeurs)})
-    d["texte"] = d.ha.map(lambda x: pct(x, 1) if en_pct else nombre(x))
-    base = alt.Chart(d).encode(
-        y=alt.Y("nom:N", sort=None, title=None, axis=alt.Axis(
-            labelLimit=260, labelOverlap=False, labelFontSize=12, ticks=False, domain=False)),
-        x=alt.X("ha:Q", title=titre_x,  # la valeur est écrite au bout de chaque barre
-                axis=alt.Axis(labels=False, ticks=False, gridOpacity=0.3)))
-    barres = base.mark_bar(color=couleur, cornerRadiusEnd=4, height=14).encode(
-        tooltip=[alt.Tooltip("nom:N", title=" "), alt.Tooltip("texte:N", title="valeur")])
-    textes = base.mark_text(align="left", dx=4, fontSize=11,
-                            color="#d6d5cd" if st.context.theme.type == "dark" else "#52514e") \
-        .encode(text="texte:N")
-    return (barres + textes).properties(height=24 * len(d) + 30)
 
 
 # --- Appel du moteur en ligne de commande ----------------------------------------------------

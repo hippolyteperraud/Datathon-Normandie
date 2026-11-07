@@ -135,8 +135,17 @@ def mettre_a_jour(args):
 
 
 def satellite(args):
-    from .sentinel import verifier_communes
-    verifier_communes(args.communes or None, annee=args.annee)
+    """Toutes les communes par défaut (les communes à aller voir d'abord) ; ou celles données."""
+    import pandas as pd
+
+    from .sentinel import communes_a_aller_voir, verifier_communes
+    if args.communes:
+        insees = args.communes
+    else:
+        prio, second = communes_a_aller_voir()
+        toutes = pd.read_csv(config.SORTIES / "communes.csv", dtype={"insee": str}).insee
+        insees = prio + second + [i for i in toutes if i not in set(prio + second)]
+    verifier_communes(insees, annee=args.annee)
 
 
 def main():
@@ -168,7 +177,7 @@ def main():
     e.add_argument("--rapide", action="store_true", help="sans le test de certitude (OCS GE)")
     e.set_defaults(f=evaluer)
     sa = sp.add_parser("satellite", help="vérifier par images Sentinel-2 les prairies sorties")
-    sa.add_argument("--communes", nargs="*", help="codes INSEE ; par défaut les communes à aller voir")
+    sa.add_argument("--communes", nargs="*", help="codes INSEE ; par défaut toutes les communes")
     sa.add_argument("--annee", type=int, default=2025)
     sa.set_defaults(f=satellite)
     lv = sp.add_parser("livrer")

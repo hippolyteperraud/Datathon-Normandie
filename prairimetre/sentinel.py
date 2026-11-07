@@ -563,3 +563,27 @@ def verifier_communes(insees=None, annee=2025, travailleurs=10):
                     print(f"{k} / {len(reste)}", flush=True)
     finally:
         FICHIER_VERROU.unlink(missing_ok=True)
+
+
+def resume_mesures(insee=None):
+    """Ce que le bloc des mesures dit des prairies sorties de la déclaration, pour la région ou pour
+    une commune : parcelles et hectares mesurés, restés verts, labourés, indéterminés, et la part de
+    la cible (prairies sorties d'au moins 1 ha) déjà mesurée. None si rien n'est mesuré."""
+    if not FICHIER_COMMUNES.exists():
+        return None
+    m = pd.read_csv(FICHIER_COMMUNES, dtype={"insee": str, "id_rpg": str}).drop_duplicates("id_rpg")
+    if insee is not None:
+        m = m[m.insee == insee]
+    if m.empty:
+        return None
+    tr = m[m.etat != "indéterminé"]
+    vert = tr.loc[tr.etat == "couvert permanent", "ha"].sum()
+    lab = tr.loc[tr.etat == "labourée", "ha"].sum()
+    cible = parcelles_cibles(m.insee.unique() if insee is None else [insee])
+    if insee is None:
+        from .suivi import devenir
+        d = devenir(2018, 2025)
+        cible = d[(d.ha >= 1) & (d["non déclaré"] > 0.9 * d.ha) & d.insee.notna()]
+    return {"parcelles": len(m), "ha": m.ha.sum(), "ha_verts": vert, "ha_laboures": lab,
+            "ha_indetermines": m.ha.sum() - tr.ha.sum(), "part_verte": vert / (vert + lab) if vert + lab else None,
+            "cible_parcelles": len(cible), "cible_ha": cible.ha.sum()}

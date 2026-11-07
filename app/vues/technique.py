@@ -136,7 +136,8 @@ pret = not manquantes()  # sans résultats, seul l'onglet Recalculer sert : y la
 st.title("Technique")
 if pret:
     exiger_sorties()  # prévient si un registre plus récent que les résultats est en local
-preuves, sources, mots, moteur = st.tabs(["Preuves", "Sources", "Les mots", "Recalculer"])
+preuves, a_part, sources, mots, moteur = st.tabs(
+    ["Preuves", "Années à part", "Sources", "Les mots", "Recalculer"])
 SANS_RESULTATS = "Pas encore de résultats : lancez le calcul dans l'onglet Recalculer."
 
 # --- Preuves : ce qui fonde chaque chiffre de l'appli -----------------------------------------------
@@ -342,6 +343,14 @@ with preuves:
             "- La richesse écologique des prairies n'est cartographiée que dans les sites Natura "
             "2000 de l'ouest de la région.")
 
+# --- Années à part : 2019, 2023, le ratio de la PAC ---------------------------------------------------
+with a_part:
+    if not pret:
+        st.info(SANS_RESULTATS)
+    else:
+        from annees import afficher as afficher_annees
+        afficher_annees()
+
 # --- Sources : rangées par usage, une ligne chacune -------------------------------------------------
 with sources:
     def ligne_source(nom):
@@ -383,7 +392,7 @@ with moteur:
                  disabled=st.session_state.get("en_cours", False)):
         executer(["calculer"], ["evaluer"])
 
-    # --- Vérification par satellite : sur les communes qu'on veut, sans jamais remesurer ------------
+    # --- Vérification par satellite : toutes les communes, sans jamais remesurer --------------------
     st.divider()
     import subprocess
     import sys
@@ -393,60 +402,32 @@ with moteur:
 
     st.markdown("**Vérification par satellite**",
                 help="Chaque prairie sortie de la déclaration (au moins 1 ha) est regardée sur toutes les "
-                     "images Sentinel-2 sans nuage de l'année : verte toute l'année, ou labourée. Les "
-                     "mesures sont gardées dans verification/sentinel2/ : une parcelle déjà mesurée n'est "
-                     "jamais redemandée. Résultats dans Où aller voir et Ma commune.")
+                     "images Sentinel-2 sans nuage de l'année : restée verte, ou labourée. Les mesures sont "
+                     "gardées dans verification/sentinel2/ : une parcelle déjà mesurée n'est jamais "
+                     "redemandée. Résultats dans Objectif 2030 et Ma commune.")
 
-    @st.cache_data(show_spinner=False)
-    def _cibles(insees, _maj):
-        c = sen.parcelles_cibles(insees)
-        return len(c), c.index
-
-    @st.fragment(run_every="10s")
+    @st.fragment(run_every="15s")
     def suivi_satellite():
-        a = sen.avancement()
-        faites = sen.deja_mesurees()
+        a, r = sen.avancement(), sen.resume_mesures()
         if a:
             reste = max(a["total"] - a["faits"], 0)
             st.progress(min(a["faits"] / max(a["total"], 1), 1.0),
-                        text=f"En cours : {nombre(a['faits'])} parcelles mesurées sur {nombre(a['total'])} "
-                             f"({nombre(a['communes'])} communes), fin dans environ "
-                             f"{nombre(reste * sen.SECONDES_PAR_PARCELLE / 60)} min.")
-        st.caption(f"Déjà mesurées : {nombre(len(faites))} parcelles.")
-        return a
+                        text=f"En cours : {nombre(a['faits'])} parcelles sur {nombre(a['total'])}, fin dans "
+                             f"environ {nombre(reste * sen.SECONDES_PAR_PARCELLE / 60)} min.")
+        if r:
+            st.caption(f"Mesurées : {nombre(r['parcelles'])} parcelles sur {nombre(r['cible_parcelles'])} "
+                       f"({ha(r['ha'])} sur {ha(r['cible_ha'])}).")
+        return a, r
 
-    en_cours = suivi_satellite()
-    t_com = table("communes")
-    prio, second = sen.communes_a_aller_voir()
-    choix = st.segmented_control("Communes", ["à aller voir", "choisies"], default="à aller voir",
-                                 key="sat_choix") or "à aller voir"
-    if choix == "choisies":
-        noms = t_com[t_com.statut == "calculé"].sort_values("nom_officiel")
-        insees = st.multiselect("Communes", list(noms.index), key="sat_communes",
-                                format_func=lambda i: f"{noms.nom_officiel[i]} ({noms.dep[i]})",
-                                placeholder="Choisir une ou plusieurs communes")
-    else:
-        insees = prio + second
-    if insees:
-        maj = sen.FICHIER_COMMUNES.stat().st_mtime if sen.FICHIER_COMMUNES.exists() else 0
-        total, index = _cibles(tuple(insees), maj)
-        faites = sen.deja_mesurees()
-        from prairimetre.donnees import prairies
-        ids = prairies(2018).loc[index, "id_parcel"].astype(str)
-        a_mesurer = int((~ids.isin(faites)).sum())
-        st.markdown(f"{nombre(total)} prairies sorties dans {nombre(len(insees))} commune"
-                    f"{'s' if len(insees) > 1 else ''} ; **{nombre(a_mesurer)} à mesurer**, environ "
-                    f"{nombre(a_mesurer * sen.SECONDES_PAR_PARCELLE / 60)} min.")
-        if st.button("Lancer la vérification satellite", icon=":material/satellite_alt:",
-                     disabled=bool(en_cours) or a_mesurer == 0, key="sat_lancer"):
-            journal = sen.DOSSIER / "journal.txt"
-            sen.DOSSIER.mkdir(parents=True, exist_ok=True)
-            args = [sys.executable, "-X", "utf8", "-m", "prairimetre", "satellite"]
-            if choix == "choisies":
-                args += ["--communes", *insees]
-            options = {"creationflags": subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP} \
-                if sys.platform == "win32" else {"start_new_session": True}
-            subprocess.Popen(args, cwd=RACINE, stdout=open(journal, "w", encoding="utf-8"),
-                             stderr=subprocess.STDOUT, **options)
-            st.toast("Vérification lancée : elle continue même si on change de page.")
-            st.rerun()
+    en_cours, r = suivi_satellite()
+    complet = r is not None and r["parcelles"] >= r["cible_parcelles"]
+    if st.button("Reprendre la vérification satellite", icon=":material/satellite_alt:",
+                 disabled=bool(en_cours) or complet, key="sat_lancer",
+                 help="Reprend là où elle s'est arrêtée, sur toutes les communes."):
+        sen.DOSSIER.mkdir(parents=True, exist_ok=True)
+        options = {"creationflags": subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP}             if sys.platform == "win32" else {"start_new_session": True}
+        subprocess.Popen([sys.executable, "-X", "utf8", "-m", "prairimetre", "satellite"], cwd=RACINE,
+                         stdout=open(sen.DOSSIER / "journal.txt", "w", encoding="utf-8"),
+                         stderr=subprocess.STDOUT, **options)
+        st.toast("Vérification lancée : elle continue même si on ferme l'appli.")
+        st.rerun()
