@@ -528,11 +528,19 @@ def _noter_avancement(**champs):
     FICHIER_VERROU.write_text(json.dumps(a, ensure_ascii=False), encoding="utf-8")
 
 
+COLONNES_IMAGES = ["date", "item", "part_sale", "part_sol_nu", "ndvi", "erreur", "id_rpg"]
+ECHECS_DE_SUITE = 30     # au-delà, la connexion est sans doute coupée : pause, puis nouvel essai
+PAUSE_S = 600
+ESSAIS_MAX = 150         # 150 pauses de 10 min : on attend la connexion jusqu'à 25 h
+
+
 def verifier_communes(insees=None, annee=None, travailleurs=10):
     """Mesure, image par image, chaque prairie sortie de la déclaration (voir parcelles_cibles) dans
-    les communes données ; par défaut, les communes à aller voir (prioritaires d'abord). Seules les
-    parcelles absentes du bloc sont mesurées ; chacune y est écrite aussitôt. Un seul calcul à la
-    fois (verrou en_cours.json, qui sert aussi à suivre l'avancement)."""
+    les communes données ; par défaut toutes. Seules les parcelles absentes du bloc sont mesurées ;
+    chacune y est écrite aussitôt, et seulement si toutes ses images ont été lues (sinon elle est
+    reprise). Si la connexion coupe (beaucoup d'échecs de suite), le calcul fait une pause de 10 min
+    et réessaie, jusqu'à ce que tout soit mesuré. Un seul calcul à la fois (verrou en_cours.json,
+    qui sert aussi à suivre l'avancement)."""
     import threading
 
     from .donnees import prairies
@@ -551,46 +559,66 @@ def verifier_communes(insees=None, annee=None, travailleurs=10):
     g["priorite"] = np.select([g.insee.isin(prio), g.insee.isin(second)],
                               ["prioritaire", "secondaire"], "autre")
     g["id_rpg"] = g.id_parcel.astype(str)
-    faits = deja_mesurees(annee)
-    reste = g[~g.id_rpg.isin(faits)].sort_values(["priorite", "insee"])
-    print(f"{len(g)} parcelles dans {len(set(insees))} communes, {len(g) - len(reste)} déjà mesurées, "
-          f"{len(reste)} à mesurer (environ {len(reste) * SECONDES_PAR_PARCELLE / 60:.0f} min)", flush=True)
-    if reste.empty:
-        return
-    wgs = reste.to_crs(4326)
     verrou = threading.Lock()
-    DOSSIER.mkdir(parents=True, exist_ok=True)
-    compte = {"faits": 0}
-    _noter_avancement(total=len(reste), faits=0, communes=len(set(insees)), debut=time.time())
+    etat_calcul = {"faits": 0, "echecs_de_suite": 0, "coupe": False}
 
-    def un(i):
-        r = reste.iloc[i]
-        geo = json.loads(json.dumps(wgs.geometry.iloc[i].__geo_interface__))
+    def un(r, geo, point):
+        if etat_calcul["coupe"]:
+            return
         try:
             p = profil(geo, annee)
-        except Exception as e:  # le catalogue ne répond pas : la parcelle sera reprise au prochain lancement
-            print(f"{r.id_rpg} : {str(e)[:80]}", flush=True)
+        except Exception as e:  # le catalogue ne répond pas : la parcelle sera reprise
+            p = pd.DataFrame([{"erreur": str(e)[:120]}])
+        if "erreur" in p and p.erreur.notna().any():  # une image illisible : on reprendra la parcelle
+            with verrou:
+                etat_calcul["echecs_de_suite"] += 1
+                if etat_calcul["echecs_de_suite"] >= ECHECS_DE_SUITE:
+                    etat_calcul["coupe"] = True
             return
         etat, raison = classer(p)
-        c = wgs.geometry.iloc[i].representative_point()
         ligne = pd.DataFrame([{"id_rpg": r.id_rpg, "insee": r.insee, "priorite": r.priorite,
-                               "ha": round(r.ha, 2), "latitude": round(c.y, 5),
-                               "longitude": round(c.x, 5), "images": len(p),
+                               "ha": round(r.ha, 2), "latitude": round(point.y, 5),
+                               "longitude": round(point.x, 5), "images": len(p),
                                "images_sans_nuage": len(_propres(p)), "etat": etat, "raison": raison}])
         with verrou:
             ligne.to_csv(f_parcelles, mode="a", index=False, header=not f_parcelles.exists(),
                          encoding="utf-8")
             if len(p):
-                p.assign(id_rpg=r.id_rpg).to_csv(f_images, mode="a", index=False,
-                                                  header=not f_images.exists(), encoding="utf-8")
-            compte["faits"] += 1
-            _noter_avancement(faits=compte["faits"])
+                p.assign(id_rpg=r.id_rpg).reindex(columns=COLONNES_IMAGES).to_csv(
+                    f_images, mode="a", index=False, header=not f_images.exists(), encoding="utf-8")
+            etat_calcul["faits"] += 1
+            etat_calcul["echecs_de_suite"] = 0
+            _noter_avancement(faits=etat_calcul["faits"])
 
     try:
-        with ThreadPoolExecutor(travailleurs) as pool:
-            for k, _ in enumerate(pool.map(un, range(len(reste))), 1):
-                if k % 100 == 0:
-                    print(f"{k} / {len(reste)}", flush=True)
+        for essai in range(ESSAIS_MAX + 1):
+            reste = g[~g.id_rpg.isin(deja_mesurees(annee))].sort_values(["priorite", "insee"])
+            print(f"{len(g)} parcelles dans {len(set(insees))} communes, {len(g) - len(reste)} déjà "
+                  f"mesurées, {len(reste)} à mesurer (environ {len(reste) * SECONDES_PAR_PARCELLE / 60:.0f} "
+                  "min)", flush=True)
+            if reste.empty:
+                return
+            wgs = reste.to_crs(4326)
+            geos = [json.loads(json.dumps(x.__geo_interface__)) for x in wgs.geometry]
+            points = list(wgs.geometry.representative_point())
+            etat_calcul.update(echecs_de_suite=0, coupe=False)
+            _noter_avancement(total=etat_calcul["faits"] + len(reste), communes=len(set(insees)),
+                              debut=time.time() if essai == 0 else
+                              json.loads(FICHIER_VERROU.read_text(encoding="utf-8")).get("debut", time.time()),
+                              attente=False)
+            with ThreadPoolExecutor(travailleurs) as pool:
+                for k, _ in enumerate(pool.map(un, (r for _, r in reste.iterrows()), geos, points), 1):
+                    if k % 100 == 0:
+                        print(f"{k} / {len(reste)}", flush=True)
+            if not etat_calcul["coupe"] and g.id_rpg.isin(deja_mesurees(annee)).all():
+                return
+            # Connexion coupée, ou quelques parcelles à reprendre : pause, en gardant le verrou à jour
+            print(f"Connexion coupée ou parcelles à reprendre : nouvel essai dans {PAUSE_S // 60} min "
+                  f"({essai + 1}/{ESSAIS_MAX}).", flush=True)
+            for _ in range(PAUSE_S // 30):
+                _noter_avancement(attente=True)
+                time.sleep(30)
+        print("Abandon : la connexion n'est pas revenue. Relancer plus tard, rien n'est perdu.", flush=True)
     finally:
         FICHIER_VERROU.unlink(missing_ok=True)
 
