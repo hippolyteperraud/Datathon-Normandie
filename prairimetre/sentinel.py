@@ -478,9 +478,11 @@ def periode():
 
 
 def bloc(annee=None):
-    """Les deux fichiers du bloc des mesures pour une année d'images : (parcelles, images)."""
+    """Les deux fichiers du bloc des mesures pour une année d'images : (parcelles, images). Les images
+    (une ligne par parcelle et par image, ~600 000 lignes) sont compressées sans perte (gzip, lu et
+    complété directement par pandas)."""
     annee = annee or periode()[1]
-    return DOSSIER / str(annee) / "parcelles.csv", DOSSIER / str(annee) / "images.csv"
+    return DOSSIER / str(annee) / "parcelles.csv", DOSSIER / str(annee) / "images.csv.gz"
 
 
 def mesures(annee=None):
@@ -506,8 +508,8 @@ def communes_a_aller_voir():
 
 
 # Le bloc des mesures satellite, rangé par année d'images (verification/sentinel2/<année>/) : une ligne
-# par parcelle (parcelles.csv), une ligne par parcelle et par image (images.csv). Une parcelle déjà mesurée n'est jamais redemandée :
-# relancer sur d'autres communes ne mesure que les nouvelles parcelles.
+# par parcelle (parcelles.csv), une ligne par parcelle et par image (images.csv.gz). Une parcelle déjà
+# mesurée n'est jamais redemandée : relancer sur d'autres communes ne mesure que les nouvelles parcelles.
 FICHIER_VERROU = DOSSIER / "en_cours.json"
 VERROU_PERIME_S = 600     # sans nouvelle depuis 10 min, le calcul est considéré comme arrêté
 SECONDES_PAR_PARCELLE = 3.5  # mesuré : environ 17 parcelles par minute avec 10 requêtes parallèles
