@@ -91,7 +91,9 @@ vu = resume_mesures(insee) if r.devenues_non_declare >= 1 else None
 if vu and vu["ha_verts"] + vu["ha_laboures"] > 0:
     st.markdown(f"**Vu du satellite ({an})** : des prairies sorties de la déclaration, "
                 f"**{ha(vu['ha_verts'])} sont restés verts** toute l'année, {ha(vu['ha_laboures'])} ont été "
-                f"labourés ({ha(vu['ha'])} mesurés, parcelles d'au moins 1 ha).")
+                f"labourés" + (f", {ha(vu['ha_batis'])} sont bâtis" if vu["ha_batis"] >= 0.5 else "")
+                + (f", {ha(vu['ha_indetermines'])} ne se tranchent pas" if vu["ha_indetermines"] >= 0.5
+                   else "") + f" ({ha(vu['ha'])} mesurés, parcelles d'au moins 1 ha).")
 elif r.devenues_non_declare >= 1:
     st.caption("Prairies sorties de la déclaration : pas encore vérifiées par satellite.")
 
@@ -105,8 +107,9 @@ b1, b2 = st.columns([1, 1])
 bouton_details = b1.button("Détails de la commune", icon=":material/info:", key="details")
 satellite = b2.toggle("Vu du satellite", key=f"satellite_{insee}", disabled=vus.empty,
                       help="Colore les prairies sorties de la déclaration selon ce que voient les images "
-                           f"Sentinel-2 de {an} : restées vertes toute l'année, labourées, ou indéterminées "
-                           "(trop de nuages). Seules les parcelles d'au moins 1 ha sont vérifiées."
+                           f"Sentinel-2 de {an} : restées vertes toute l'année, labourées, bâties, ou qui ne "
+                           "se tranchent pas (signal entre prairie et labour, ou trop de nuages). Seules "
+                           "les parcelles d'au moins 1 ha sont vérifiées."
                       if not vus.empty else "Pas encore de mesure satellite pour cette commune.")
 
 disparues, nouvelles = parcelles(insee, an)
@@ -131,7 +134,8 @@ if satellite:
     # Les prairies sorties de la déclaration, recolorées selon le verdict du satellite
     SATELLITE = {"couvert permanent": ("sortie, restée verte", "#c8d43a", "🟨"),
                  "labourée": ("sortie, labourée", "#7a4a2a", "🟫"),
-                 "indéterminé": ("sortie, indéterminée (nuages)", "#d9d9d9", "⬜")}
+                 "bâti ou minéral": ("sortie, bâtie", "#5a5a5a", "◼️"),
+                 "indéterminé": ("sortie, ne se tranche pas", "#d9d9d9", "⬜")}
     sortie = g0.libelle == DEVENIR["non déclaré"]
     etat = g0.id_parcel.astype(str).map(vus)
     for cle, (libelle, couleur, carre) in SATELLITE.items():
@@ -139,8 +143,9 @@ if satellite:
         couleurs[libelle] = couleur
         CARRES[couleur] = carre
     g0.loc[sortie & etat.notna(), "avant"] = f"<br/>vu du satellite en {an}"
-    g0.loc[sortie & etat.isna(), "libelle"] = "sortie, non vérifiée"
-    couleurs["sortie, non vérifiée"] = FLUX_COULEURS["non déclaré"]
+    non_verifiee = "sortie, non vérifiée (moins de 1 ha, ou sortie en partie)"
+    g0.loc[sortie & etat.isna(), "libelle"] = non_verifiee
+    couleurs[non_verifiee] = FLUX_COULEURS["non déclaré"]
 tout = pd.concat([g0, g1])
 if tout.empty:
     st.info("Aucune parcelle à afficher.")

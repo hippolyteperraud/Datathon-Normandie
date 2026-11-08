@@ -68,9 +68,14 @@ try:
 except FileNotFoundError:
     r = None
 if r and r["part_verte"] is not None:
-    phrase += (f", mais pas le paysage : vu du satellite en {an}, **{nombre(100 * r['part_verte'], 0)} ha "
-               f"sur 100 des prairies sorties de la déclaration sont restés verts**, sans labour "
-               f"({ha(r['ha'])} mesurés sur {ha(r['cible_ha'])}).")
+    v, lab = (round(100 * r[k] / r["ha"]) for k in ("ha_verts", "ha_laboures"))  # le reste fait 100
+    phrase += (f", mais pas le paysage : vu du satellite en {an}, sur les {ha(r['ha'])} de prairies "
+               f"sorties de la déclaration, **{v} ha sur 100 sont restés verts** sans "
+               f"labour et {lab} ont été labourés ; les {100 - v - lab} "
+               f"autres ne se tranchent pas ({r['pourquoi_indetermines']})"
+               + (f" ou sont bâtis ({ha(r['ha_batis'])})" if r["ha_batis"] >= 0.5 else "")
+               + ("" if r["ha"] >= r["cible_ha"] - 1 else f" ; {ha(r['cible_ha'] - r['ha'])} restent à mesurer")
+               + ".")
 else:
     phrase += ", mais la statistique agricole, qui compte toute l'herbe, ne les perd pas."
 st.markdown(phrase)

@@ -29,6 +29,7 @@ from __future__ import annotations
 
 import json
 import time
+import urllib.error
 import urllib.parse
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor
@@ -61,10 +62,17 @@ SCL_NU = 5
 
 # --- Accès au service -------------------------------------------------------------------------
 def _post(url, corps, essais=4):
+    """Une requête ; on réessaie si le réseau flanche. Une réponse d'erreur du serveur (HTTP) n'est
+    réessayée qu'une fois : elle tient d'ordinaire à l'image elle-même ; sauf « trop de requêtes »
+    (429), qui tient au débit : on attend et on réessaie comme pour le réseau."""
     req = urllib.request.Request(url, json.dumps(corps).encode(), {"Content-Type": "application/json"})
     for i in range(essais):
         try:
             return json.load(urllib.request.urlopen(req, timeout=45))
+        except urllib.error.HTTPError as e:
+            if i == essais - 1 or (e.code != 429 and i >= 1):
+                raise
+            time.sleep(10 * (i + 1) if e.code == 429 else 2)
         except Exception:
             if i == essais - 1:
                 raise
@@ -72,17 +80,15 @@ def _post(url, corps, essais=4):
 
 
 def images(geometrie, annee, nuages_max=40):
-    """Images Sentinel-2 de l'année qui couvrent la parcelle, une par date."""
+    """Images Sentinel-2 de l'année qui couvrent la parcelle : pour chaque date, la liste des images
+    (une par tuile ; une parcelle au bord de deux tuiles en a deux)."""
     corps = {"collections": [COLLECTION], "intersects": geometrie,
              "datetime": f"{annee}-01-01/{annee}-12-31",
              "query": {"eo:cloud_cover": {"lt": nuages_max}}, "limit": 300}
-    vues, out = set(), []
+    par_date = {}
     for f in sorted(_post(STAC, corps)["features"], key=lambda f: f["properties"]["datetime"]):
-        date = f["properties"]["datetime"][:10]
-        if date not in vues:
-            vues.add(date)
-            out.append((date, f["id"]))
-    return out
+        par_date.setdefault(f["properties"]["datetime"][:10], []).append(f["id"])
+    return list(par_date.items())
 
 
 def mesurer(item, geometrie):
@@ -105,15 +111,36 @@ def mesurer(item, geometrie):
     return {"item": item, "part_sale": sale, "part_sol_nu": nu, "ndvi": ndvi}
 
 
+def _tuile(item):
+    return item.split("_")[4] if item.count("_") >= 4 else item
+
+
 def profil(geometrie, annee):
-    """Une ligne par image de l'année : date, image, parts SCL, NDVI (images sans nuage)."""
-    lignes = []
-    for date, item in images(geometrie, annee):
-        try:
-            lignes.append({"date": date, **mesurer(item, geometrie)})
-        except Exception as e:  # une image illisible ne compte pas, mais reste tracée
-            lignes.append({"date": date, "item": item, "erreur": str(e)[:120]})
+    """Une ligne par date de l'année : date, image, parts SCL, NDVI (images sans nuage). Au bord de
+    deux tuiles, le service refuse souvent l'une d'elles (erreur HTTP) : on prend alors l'autre, et
+    la tuile refusée passe en dernier pour les dates suivantes. Une date où toutes les tuiles sont
+    refusées reste tracée (erreur « HTTP … ») et ne compte pas ; une coupure du réseau est notée
+    « réseau : … » et fait reprendre la parcelle."""
+    lignes, refusees = [], set()
+    for date, items in images(geometrie, annee):
+        items = sorted(items, key=lambda i: _tuile(i) in refusees)
+        for k, item in enumerate(items):
+            try:
+                lignes.append({"date": date, **mesurer(item, geometrie)})
+                break
+            except urllib.error.HTTPError as e:
+                refusees.add(_tuile(item))
+                if k == len(items) - 1:
+                    lignes.append({"date": date, "item": item, "erreur": f"HTTP {e.code}"})
+            except Exception as e:
+                lignes.append({"date": date, "item": item, "erreur": f"réseau : {str(e)[:100]}"})
+                break
     return pd.DataFrame(lignes)
+
+
+def _reseau_coupe(p):
+    """Vrai si le profil a souffert d'une coupure du réseau (la parcelle sera reprise)."""
+    return "erreur" in p and p.erreur.fillna("").str.startswith("réseau").any()
 
 
 # --- Herbe ou friche ? La carte annuelle d'occupation du sol (Impact Observatory, 10 m, ouverte) -----
@@ -441,11 +468,7 @@ def ecrire_preuves(t=None):
     return DOSSIER / "preuves.md"
 
 
-# --- Toutes les prairies sorties des communes « Où aller voir » -------------------------------------
-FICHIER_COMMUNES = DOSSIER / "communes_parcelles.csv"          # avant le rangement par année (2025)
-FICHIER_COMMUNES_IMAGES = DOSSIER / "communes_images.csv"
-
-
+# --- Toutes les prairies sorties de la déclaration -------------------------------------------------
 def periode():
     """Première et dernière année du registre installé : les prairies de la première année, sorties de
     la déclaration la dernière, sont regardées sur les images de la dernière."""
@@ -457,10 +480,7 @@ def periode():
 def bloc(annee=None):
     """Les deux fichiers du bloc des mesures pour une année d'images : (parcelles, images)."""
     annee = annee or periode()[1]
-    nouveau = (DOSSIER / str(annee) / "parcelles.csv", DOSSIER / str(annee) / "images.csv")
-    if annee == 2025 and FICHIER_COMMUNES.exists() and not nouveau[0].exists():
-        return FICHIER_COMMUNES, FICHIER_COMMUNES_IMAGES
-    return nouveau
+    return DOSSIER / str(annee) / "parcelles.csv", DOSSIER / str(annee) / "images.csv"
 
 
 def mesures(annee=None):
@@ -485,8 +505,8 @@ def communes_a_aller_voir():
     return [i for i in moitie if i not in liste], [i for i in moitie if i in liste]
 
 
-# Le bloc des mesures satellite : une ligne par parcelle (communes_parcelles.csv), une ligne par
-# parcelle et par image (communes_images.csv). Une parcelle déjà mesurée n'est jamais redemandée :
+# Le bloc des mesures satellite, rangé par année d'images (verification/sentinel2/<année>/) : une ligne
+# par parcelle (parcelles.csv), une ligne par parcelle et par image (images.csv). Une parcelle déjà mesurée n'est jamais redemandée :
 # relancer sur d'autres communes ne mesure que les nouvelles parcelles.
 FICHIER_VERROU = DOSSIER / "en_cours.json"
 VERROU_PERIME_S = 600     # sans nouvelle depuis 10 min, le calcul est considéré comme arrêté
@@ -568,12 +588,14 @@ def verifier_communes(insees=None, annee=None, travailleurs=10):
         try:
             p = profil(geo, annee)
         except Exception as e:  # le catalogue ne répond pas : la parcelle sera reprise
-            p = pd.DataFrame([{"erreur": str(e)[:120]}])
-        if "erreur" in p and p.erreur.notna().any():  # une image illisible : on reprendra la parcelle
+            p = pd.DataFrame([{"erreur": f"réseau : {str(e)[:100]}"}])
+        if _reseau_coupe(p):  # coupure du réseau : on reprendra la parcelle
             with verrou:
                 etat_calcul["echecs_de_suite"] += 1
                 if etat_calcul["echecs_de_suite"] >= ECHECS_DE_SUITE:
                     etat_calcul["coupe"] = True
+                if etat_calcul["echecs_de_suite"] in (1, ECHECS_DE_SUITE):
+                    print(f"Échec ({r.id_rpg}) : {p.erreur.dropna().iloc[0]}", flush=True)
             return
         etat, raison = classer(p)
         ligne = pd.DataFrame([{"id_rpg": r.id_rpg, "insee": r.insee, "priorite": r.priorite,
@@ -623,20 +645,31 @@ def verifier_communes(insees=None, annee=None, travailleurs=10):
         FICHIER_VERROU.unlink(missing_ok=True)
 
 
+def pourquoi_indetermines(m):
+    """Pourquoi les parcelles indéterminées du bloc ne se tranchent pas, en clair, d'après leur raison :
+    trop peu d'images sans nuage, ou un signal entre prairie et labour (zone grise de la règle)."""
+    r = m.loc[m.etat == "indéterminé", "raison"].fillna("")
+    nuages = r.str.contains("il en faut").sum()
+    if nuages == 0:
+        return "signal entre prairie et labour"
+    return "trop peu d'images sans nuage" if nuages == len(r) else "trop de nuages, ou signal entre les deux"
+
+
 def resume_mesures(insee=None, annee=None):
     """Ce que le bloc des mesures dit des prairies sorties de la déclaration, pour la région ou pour
-    une commune : parcelles et hectares mesurés, restés verts, labourés, indéterminés, et la cible
-    (prairies sorties d'au moins 1 ha). None si rien n'est mesuré."""
+    une commune : parcelles et hectares mesurés, restés verts, labourés, bâtis ou minéraux,
+    indéterminés, et la cible (prairies sorties d'au moins 1 ha). None si rien n'est mesuré."""
     m = mesures(annee)
     if insee is not None:
         m = m[m.insee == insee]
     if m.empty:
         return None
-    tr = m[m.etat != "indéterminé"]
-    vert = tr.loc[tr.etat == "couvert permanent", "ha"].sum()
-    lab = tr.loc[tr.etat == "labourée", "ha"].sum()
+    vert = m.loc[m.etat == "couvert permanent", "ha"].sum()
+    lab = m.loc[m.etat == "labourée", "ha"].sum()
     cible = parcelles_cibles(None if insee is None else [insee])
     return {"parcelles": len(m), "ha": m.ha.sum(), "ha_verts": vert, "ha_laboures": lab,
-            "ha_indetermines": m.ha.sum() - tr.ha.sum(),
+            "ha_batis": m.loc[m.etat == "bâti ou minéral", "ha"].sum(),
+            "ha_indetermines": m.loc[m.etat == "indéterminé", "ha"].sum(),
+            "pourquoi_indetermines": pourquoi_indetermines(m),
             "part_verte": vert / (vert + lab) if vert + lab else None,
             "cible_parcelles": len(cible), "cible_ha": cible.ha.sum()}

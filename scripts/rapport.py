@@ -26,7 +26,7 @@ from matplotlib.lines import Line2D  # noqa: E402
 from matplotlib.patches import Patch  # noqa: E402
 
 from prairimetre.config import CACHE, SORTIES  # noqa: E402
-from prairimetre.sentinel import DOSSIER as SAT, FICHIER_COMMUNES, bilan as bilan_sat  # noqa: E402
+from prairimetre.sentinel import DOSSIER as SAT, bilan as bilan_sat, mesures, resume_mesures  # noqa: E402
 from references import (AGRICULTEUR_ACTIF, FIN_AUTORISATION_2019, OBJECTIF_REGIONAL,  # noqa: E402
                         RATIOS, REFERENCE_RATIO)
 
@@ -133,16 +133,8 @@ sat_t = pd.read_csv(SAT / "parcelles.csv", dtype={"id_rpg": str, "insee": str})
 sat = bilan_sat(sat_t)
 s23, val = sat["sortie 2023"], sat["validation"]
 images = pd.read_csv(SAT / "images.csv", dtype={"id_rpg": str})
-com_sat = pd.read_csv(FICHIER_COMMUNES, dtype={"id_rpg": str, "insee": str}) \
-    if FICHIER_COMMUNES.exists() else pd.DataFrame()
-n_cibles = None
-try:
-    from prairimetre.suivi import devenir
-    d18 = devenir(2018, 2025)
-    m = d18.insee.isin(moitie) & (d18.ha >= 1) & (d18["non déclaré"] > 0.9 * d18.ha)
-    n_cibles, ha_cibles = int(m.sum()), float(d18.loc[m, "ha"].sum())
-except Exception:
-    pass
+com_sat = mesures()           # le bloc des mesures de la dernière année : toutes les communes
+res_sat = resume_mesures()
 
 # Fond de carte : communes en Lambert-93, contours des départements
 g = gpd.read_parquet(CACHE / "carte_communes.parquet").to_crs(2154)
@@ -263,12 +255,16 @@ def fig_carte_aller_voir():
         gg["classe"] = pd.cut(gg.v, bornes, labels=False, include_lowest=True, right=False)
         gg[gg.v.notna()].plot(ax=ax, column="classe", cmap=ListedColormap(teintes), vmin=0, vmax=len(teintes) - 1, edgecolor=TRAIT,
                               linewidth=0.1)
-        gg[gg.insee.isin(moitie) & gg.v.isna()].plot(ax=ax, color="#d8d6cc", hatch="////",
-                                                     edgecolor="#999", linewidth=0.1)
+        gris = gg[gg.insee.isin(set(com_sat.insee)) & gg.v.isna()]  # mesurées, rien de tranché
+        if len(gris):
+            gris.plot(ax=ax, color="#d8d6cc", hatch="////", edgecolor="#999", linewidth=0.1)
         etiquettes = ["moins de la moitié", "50 à 80 sur 100", "80 à 95 sur 100", "95 sur 100 et plus"]
-        poignees = [Patch(color=c, label=e) for c, e in zip(teintes, etiquettes)] + [
-            Patch(facecolor="#d8d6cc", hatch="////", edgecolor="#999", label="pas encore mesurée")]
-        titre = "Prairies sorties encore vertes en 2025\n(ha sur 100, images Sentinel-2)"
+        poignees = [Patch(color=c, label=e) for c, e in zip(teintes, etiquettes)] + (
+            [Patch(facecolor="#d8d6cc", hatch="////", edgecolor="#999",
+                   label=f"rien de tranché ({len(gris)})")] if len(gris) else []) + [
+            Patch(color=FOND, label="aucune prairie sortie\nd'au moins 1 ha")]
+        titre = (f"Prairies sorties encore vertes en {an}\n(ha sur 100 tranchés par le satellite,\n"
+                 "images Sentinel-2)")
     else:
         gg = g.assign(p=g.insee.isin(prio), s=g.insee.isin(second))
         gg[gg.p].plot(ax=ax, color=ORANGE, edgecolor=TRAIT, linewidth=0.1)
@@ -288,7 +284,7 @@ def fig_carte_echantillon():
     e = sat_t[sat_t.groupe.isin(["sortie 2023", "30 parcelles"])]
     pts = gpd.GeoDataFrame(e, geometry=gpd.points_from_xy(e.longitude, e.latitude), crs=4326).to_crs(2154)
     styles = {"couvert permanent": (VERT, "o", "verte toute l'année"), "labourée": (ROUGE, "X", "labourée"),
-              "indéterminé": ("#999", "o", "indéterminée (nuages)")}
+              "indéterminé": ("#999", "o", "ne se tranche pas")}
     for etat, (c, mk, lab) in styles.items():
         x = pts[pts.etat == etat]
         if len(x):
@@ -370,19 +366,26 @@ def rapport():
     aa, o = AGRICULTEUR_ACTIF, OBJECTIF_REGIONAL
     pire = ecart + s23["bas"] * s23["population_ha"]
     mieux = ecart + r23.toujours_hors_ha
-    if len(com_sat):
-        tr = com_sat[com_sat.etat != "indéterminé"]
-        vert_ha = tr.loc[tr.etat == "couvert permanent", "ha"].sum()
-        lab_ha = tr.loc[tr.etat == "labourée", "ha"].sum()
-        avancement = (f"{nb(len(com_sat))} parcelles mesurées sur {nb(n_cibles)} ({ha(com_sat.ha.sum())} "
-                      f"sur {ha(ha_cibles)})" if n_cibles else f"{nb(len(com_sat))} parcelles mesurées")
-        com_txt = (f"<p>Dans les {len(moitie)} communes à aller voir, toutes les prairies sorties d'au moins "
-                   f"1&nbsp;ha sont mesurées une à une : {avancement}. Sur celles que le satellite tranche, "
-                   f"<b>{ha(vert_ha)} restent vertes toute l'année</b> et {ha(lab_ha)} ont été labourées "
-                   f"({nb(100 * vert_ha / (vert_ha + lab_ha), 0)} ha sur 100 restés verts). La carte dit, "
-                   "commune par commune, où il reste vraiment à aller voir.</p>")
+    if res_sat:
+        r = res_sat
+        v_100, l_100 = (round(100 * r[k] / r["ha"]) for k in ("ha_verts", "ha_laboures"))
+        complet = r["parcelles"] >= r["cible_parcelles"]
+        avancement = (f"{nb(r['parcelles'])} parcelles, {ha(r['ha'])}"
+                      + ("" if complet else f", sur {nb(r['cible_parcelles'])} à mesurer ({ha(r['cible_ha'])})"))
+        com_txt = (f"<p>Dans toute la Normandie, chaque prairie de {a0} d'au moins 1&nbsp;ha sortie de la "
+                   f"déclaration en {an} est mesurée une à une sur les images {an} : {avancement}"
+                   f"{' (toutes)' if complet else ''}. <b>{v_100} ha sur 100 restent verts toute "
+                   f"l'année</b> ({ha(r['ha_verts'])}), {l_100} ont été labourés ({ha(r['ha_laboures'])}) ; "
+                   f"les {100 - v_100 - l_100} autres ne se tranchent pas ({r['pourquoi_indetermines']})"
+                   + (f" ou sont bâtis ({ha(r['ha_batis'])})" if r["ha_batis"] >= 0.5 else "")
+                   + ". La carte le dit commune par commune.</p>")
+        inconnu_sat = (f"le satellite a mesuré {ha(r['ha'])} sur les {ha(sorties)} de prairies sorties depuis {a0} "
+                       "(les parcelles de moins de 1&nbsp;ha et celles sorties en partie ne le sont pas), et "
+                       f"{ha(r['ha_indetermines'])} ne se tranchent pas ; il dit si la parcelle reste verte, "
+                       "pas si c'est de l'herbe ou une friche.")
     else:
         com_txt = "<p>La mesure commune par commune est en cours.</p>"
+        inconnu_sat = "le satellite n'en a mesuré qu'un échantillon."
     v = val
     t_seul = terrain[terrain.test == "terrain seul"].rapport_meme_commune.iloc[0]
     t_n2000 = terrain[terrain.comparaison.str.contains("Natura")].rapport_meme_commune.iloc[0]
@@ -550,8 +553,8 @@ commune, {an - 3}→{an}. Contour noir : les {len(liste211)} communes qui porten
 <p>Les sorties de la déclaration se concentrent aussi : {len(moitie)} communes en portent la moitié. La question
 pour elles : l'herbe est-elle encore là ? Le satellite y répond.</p>
 {com_txt}
-<figure><img src="{figs['fig_carte_aller_voir']}" style="width:86%"><figcaption>Les communes qui portent la moitié des
-sorties de la déclaration, et ce que le satellite y voit.</figcaption></figure>
+<figure><img src="{figs['fig_carte_aller_voir']}" style="width:86%"><figcaption>Ce que le satellite voit des
+prairies sorties de la déclaration, commune par commune.</figcaption></figure>
 <p>Enfin, {len(gain)} communes gagnent des prairies sur d'anciennes cultures ({ha(gain.sum())}) et {len(sans_perte)}
 n'en ont perdu aucune : des exemples à faire connaître.</p>
 <figure><img src="{figs['fig_carte_exemples']}" style="width:70%"><figcaption>Les communes exemples.</figcaption></figure>
@@ -593,8 +596,7 @@ n'importe quelle région française, chaque année, dès la publication du regis
 <ul>
 <li>Ce que donneraient les chiffres de 2019 dans l'ancienne version des séries d'Agreste, sur laquelle la
 cible de {o['part_sau_pct']} % a été fixée : seules les séries révisées sont publiées.</li>
-<li>L'état de toutes les prairies sorties : le satellite en a mesuré un échantillon et les parcelles des
-communes à aller voir ; le reste de la région n'est pas mesuré parcelle par parcelle.</li>
+<li>L'état de toutes les prairies sorties : {inconnu_sat}</li>
 <li>La cause écrite du trou du registre 2019 (l'explication par l'état au 1er janvier reste à confirmer).</li>
 <li>L'effet des paiements (mesures agro-environnementales) : aucune donnée dans le projet.</li>
 </ul>
