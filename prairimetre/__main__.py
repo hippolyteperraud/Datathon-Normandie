@@ -15,6 +15,8 @@ Les commandes détaillées :
     evaluer [--rapide]            zonages, concentration, prédiction, certitude, SAA...
     livrer [--avec-donnees]       paquet de remise local (zip) : code, résultats, manifest
     satellite [--communes INSEE]  vérifier par satellite les prairies sorties de la déclaration
+    agreste                       nouvelles séries de la statistique agricole (Agreste) : les
+                                  télécharger, puis recalculer
 """
 import argparse
 import sys
@@ -140,6 +142,21 @@ def recalculer(args):
     evaluer(args)
 
 
+def agreste(args):
+    """Les dernières séries de la statistique agricole (la mesure officielle de l'objectif) : séries
+    longues (herbe et surface agricole) et évolution annuelle des prairies, puis tout recalculer."""
+    if str(config.RACINE) not in sys.path:
+        sys.path.insert(0, str(config.RACINE))
+    import importer_donnees
+    from .telecharger import nettoyer_tmp
+    try:
+        for nom in ("saa_series", "saa_prairies"):
+            importer_donnees.recuperer(nom)
+    finally:
+        nettoyer_tmp()
+    recalculer(args)
+
+
 def satellite(args):
     """Toutes les communes par défaut (les communes à aller voir d'abord) ; ou celles données."""
     import pandas as pd
@@ -184,6 +201,8 @@ def main():
     e = sp.add_parser("evaluer")
     e.add_argument("--rapide", action="store_true", help="sans le test de certitude (OCS GE)")
     e.set_defaults(f=evaluer)
+    sp.add_parser("agreste", help="nouvelles séries Agreste : télécharger puis recalculer").set_defaults(
+        f=agreste)
     sa = sp.add_parser("satellite", help="vérifier par images Sentinel-2 les prairies sorties")
     sa.add_argument("--communes", nargs="*", help="codes INSEE ; par défaut toutes les communes")
     sa.add_argument("--annee", type=int, help="année des images ; par défaut la dernière du registre")
@@ -196,7 +215,7 @@ def main():
     args.f(args)
     duree = time.time() - debut
     print(f"\n({duree:,.0f} s)")
-    if args.commande in ("calculer", "evaluer", "mettre-a-jour", "recalculer"):
+    if args.commande in ("calculer", "evaluer", "mettre-a-jour", "recalculer", "agreste"):
         sobriete(args.commande, duree)
 
 

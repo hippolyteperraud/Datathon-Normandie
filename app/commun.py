@@ -5,6 +5,7 @@ Règle des données manquantes : on n'affiche jamais une case vide ou « None »
 est remplacée par sa raison (« moins de 20 ha de prairies », « non renseigné dans le Sandre »...).
 """
 import re
+from pathlib import Path
 
 import pandas as pd
 import pydeck as pdk
@@ -147,45 +148,76 @@ def aides_chiffres():
                               "2025)."}
 
 
-def chiffres_normandie():
-    """Les trois chiffres de l'objectif régional (mesure officielle), sur toutes les pages, au même niveau
-    que le menu. Sur un écran trop étroit, ils passent sous le menu. Rien tant que le moteur n'a pas
-    produit ses résultats."""
-    if manquantes():
-        return
-    o = table("objectif").set_index("annee")
-    if "part_sth" not in o or o.part_sth.dropna().empty:
-        return
-    a_ref, a_obj = int(o.annee_reference.iloc[0]), int(o.annee_objectif.iloc[0])
-    herbe, part = o.sth_ha.dropna(), o.part_sth.dropna()
-    fin = int(herbe.index.max())
-    source = "statistique agricole annuelle (Agreste), superficie toujours en herbe ; dernière année provisoire"
-    cases = [(ha(herbe.loc[fin] - herbe.loc[a_ref], signe=True), f"prairies, {a_ref}→{fin}", source),
-             (pct(part.loc[fin], 1), f"de la surface agricole en herbe, {fin}", source),
-             ("0 perte nette", f"objectif {a_obj}", "Stratégie régionale pour la biodiversité, objectif III.5")]
+GAIN_MINIMUM_HA = 5    # en dessous, le gain pèse moins qu'une parcelle : ce n'est pas un exemple
+PERTE_MAXIMUM_HA = 1   # en dessous, un écart de contour d'une année à l'autre, pas une perte
+
+
+def communes_exemples(t):
+    """Les communes où ça va bien : (gain, gardent). gain : hectares gagnés de façon assurée sur
+    d'anciennes cultures (ni une prairie temporaire devenue permanente, ni une nouvelle déclaration),
+    net de ce qui a été perdu, au moins GAIN_MINIMUM_HA ; gardent : les autres communes qui n'ont
+    perdu aucune prairie de la première année."""
+    calc = t[t.statut == "calculé"]
+    sur_cultures = calc.venues_culture - calc.devenues_culture
+    temporaires = (calc.venues_temporaire - calc.devenues_temporaire).clip(lower=0)
+    declarees = calc.venues_non_declare - calc.devenues_non_declare
+    assure = pd.concat([calc.solde, sur_cultures], axis=1).min(axis=1)
+    gain = assure[(calc.solde > 0) & (sur_cultures >= declarees + temporaires) & (assure >= GAIN_MINIMUM_HA)]
+    gardent = [i for i in calc.index[calc.disparues < PERTE_MAXIMUM_HA] if i not in set(gain.index)]
+    return gain, gardent
+
+
+# Chaque auteur, son école et le logo de l'école (dans app/assets), avec sa hauteur à l'écran en pixels :
+# les deux logos n'ont pas la même forme, ces hauteurs leur donnent un poids voisin
+EQUIPE = [("Hippolyte Perraud", "INSA Rouen Normandie", "logo_insa_rouen.png", 25),
+          ("Mouhssine Bairoune", "ENSICAEN", "logo_ensicaen.png", 38)]
+
+
+@st.cache_data
+def _logo(fichier):
+    """Le logo en data URI (le HTML de st.markdown ne lit pas les fichiers locaux) ; None s'il manque."""
+    import base64
+    f = Path(__file__).parent / "assets" / fichier
+    return f"data:image/png;base64,{base64.b64encode(f.read_bytes()).decode()}" if f.exists() else None
+
+
+def equipe():
+    """Les auteurs et le logo de leur école, en haut à droite de toutes les pages, au niveau du menu.
+    Sur un écran trop étroit, ils passent sous le menu. Le logo est posé sur un fond blanc, pour rester
+    lisible en thème sombre ; s'il manque, le nom de l'école le remplace."""
+    def case(nom, ecole, fichier, hauteur):
+        src = _logo(fichier)
+        marque = (f'<img src="{src}" alt="{ecole}" title="{ecole}" style="height:{hauteur}px">' if src
+                  else f'<span class="ecole">{ecole}</span>')
+        return f'<span class="case"><span class="nom">{nom}</span><span class="marque">{marque}</span></span>'
     st.markdown(
         "<style>"
-        ".chiffres-normandie {display:flex;align-items:center;gap:1.4rem;position:fixed;top:0;"
-        "right:3.2rem;height:3.75rem;z-index:999999}"
-        ".chiffres-normandie .case {display:flex;flex-direction:column;line-height:1.15}"
-        ".chiffres-normandie .valeur {font-size:1.15rem;font-weight:700;white-space:nowrap}"
-        ".chiffres-normandie .nom {font-size:0.7rem;opacity:0.75;white-space:nowrap}"
-        ".chiffres-normandie .region {font-size:0.68rem;font-weight:600;letter-spacing:0.04em;"
-        "opacity:0.7}"
-        "@media (max-width:1240px) {.chiffres-normandie {position:static;height:auto;flex-wrap:wrap;"
+        ".equipe {display:flex;align-items:center;gap:1.4rem;position:fixed;top:0;right:3.2rem;"
+        "height:3.75rem;z-index:999999}"
+        ".equipe .case {display:flex;align-items:center;gap:0.55rem}"
+        ".equipe .nom {font-size:0.92rem;font-weight:700;white-space:nowrap}"
+        ".equipe .marque {display:flex;align-items:center;background:#fff;border-radius:6px;"
+        "padding:3px 6px}"
+        ".equipe .marque img {display:block}"
+        ".equipe .ecole {font-size:0.72rem;color:#1f2a24;white-space:nowrap}"
+        "@media (max-width:1100px) {.equipe {position:static;height:auto;flex-wrap:wrap;"
         "margin-bottom:1rem}}"
         "</style>"
-        '<div class="chiffres-normandie"><span class="region">NORMANDIE</span>'
-        + "".join(f'<span class="case" title="{aide}"><span class="valeur">{valeur}</span>'
-                  f'<span class="nom">{nom}</span></span>' for valeur, nom, aide in cases)
-        + "</div>", unsafe_allow_html=True)
+        f'<div class="equipe">{"".join(case(*e) for e in EQUIPE)}</div>', unsafe_allow_html=True)
 
 
-def communes_moitie(t):
-    """Les communes, de la plus touchée à la moins touchée, qui portent ensemble la moitié du
-    retournement récent (index de la table communes)."""
-    ret = t[t.statut == "calculé"].retourne_recent.sort_values(ascending=False)
-    return ret.index[:int((ret.cumsum() / ret.sum() < 0.5).sum() + 1)]
+@st.cache_data(show_spinner=False)
+def _herbe(date_mesures):
+    from prairimetre import sentinel as sen
+    return sen.herbe_reelle()
+
+
+def herbe_communes():
+    """Ce que sont devenues, en hectares, les prairies de la première année, commune par commune (voir
+    sentinel.herbe_reelle). Recalculé quand le bloc des mesures satellite change."""
+    from prairimetre import sentinel as sen
+    f = sen.bloc()[0]
+    return _herbe(f.stat().st_mtime if f.exists() else 0)
 
 
 def comparaison(zonage):
@@ -251,16 +283,17 @@ def hex_rgb(h, alpha=220):
     return [int(h[i:i + 2], 16) for i in (0, 2, 4)] + [alpha]
 
 
-def deck(couches, vue_sur, info, hauteur=560):
+def deck(couches, vue_sur, info, hauteur=560, zoom=None):
     """Carte pydeck. couches : liste de (GeoDataFrame WGS84 avec colonne 'couleur', id) ;
-    vue_sur : GeoDataFrame sur lequel centrer ; info : HTML du survol."""
+    vue_sur : GeoDataFrame sur lequel centrer ; info : HTML du survol ; zoom : imposé pour une petite
+    carte (sinon tiré de l'étendue)."""
     layers = [pdk.Layer("GeoJsonLayer", data=g.__geo_interface__, id=i, pickable=True,
                         stroked=True, filled=True, get_fill_color="properties.couleur",
                         get_line_color=[255, 255, 255, 160], line_width_min_pixels=0.5,
                         auto_highlight=True) for g, i in couches]
     b = vue_sur.total_bounds
     etendue = max(b[2] - b[0], b[3] - b[1])
-    zoom = 6.8 if etendue > 2 else 8.2 if etendue > 0.8 else 9.5 if etendue > 0.3 else 11
+    zoom = zoom or (6.8 if etendue > 2 else 8.2 if etendue > 0.8 else 9.5 if etendue > 0.3 else 11)
     vue = pdk.ViewState(longitude=(b[0] + b[2]) / 2, latitude=(b[1] + b[3]) / 2, zoom=zoom)
     # Le fond de carte est toujours affiché (il demande une connexion internet)
     return pdk.Deck(layers=layers, initial_view_state=vue, map_provider="carto",

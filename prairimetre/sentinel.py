@@ -254,6 +254,47 @@ def echantillons(n_temoins=20, n_2023=40):
     return gpd.GeoDataFrame(pd.concat(morceaux, ignore_index=True), geometry="geometry", crs=p22.crs)
 
 
+GRAINE_PETITES = 2028
+PETITE_MIN_HA, PETITE_MAX_HA = 0.25, 1.0
+
+
+def valider_petites(n=30, annee=2025, travailleurs=8):
+    """La règle a été réglée et validée sur des parcelles d'au moins 1 ha. Avant de l'appliquer aux
+    petites prairies sorties, on la teste sur des petites parcelles (0,25 à 1 ha) dont le registre
+    donne la réponse, tirées au hasard (graine fixe) : n prairies de 2022 encore déclarées en prairie
+    permanente en 2025, n déclarées en culture en 2025. Écrit verification/sentinel2/petites_parcelles.csv
+    et renvoie le tableau (une ligne par parcelle : groupe, état)."""
+    from .donnees import prairies
+    from .suivi import devenir
+    p22, long = prairies(2022), devenir(2022, 2025)
+    ok = long.insee.notna() & long.ha.between(PETITE_MIN_HA, PETITE_MAX_HA, inclusive="left")
+    e = pd.concat([_tirer(ok & (long["prairie permanente"] > 0.95 * long.ha), long, p22, n, GRAINE_PETITES,
+                          "petite prairie"),
+                   _tirer(ok & (long.culture > 0.95 * long.ha), long, p22, n, GRAINE_PETITES,
+                          "petite culture")], ignore_index=True)
+    wgs = e.set_geometry("geometry").to_crs(4326)
+
+    def un(i):
+        geo = json.loads(json.dumps(wgs.geometry.iloc[i].__geo_interface__))
+        for _ in range(3):  # une coupure du réseau : on réessaie la parcelle
+            p = profil(geo, annee)
+            if not _reseau_coupe(p):
+                return p
+        return p
+
+    with ThreadPoolExecutor(travailleurs) as pool:
+        profils = list(pool.map(un, range(len(e))))
+    lignes = []
+    for (_, r), p in zip(e.iterrows(), profils):
+        etat, raison = classer(p)
+        lignes.append({"groupe": r.groupe, "id_rpg": str(r.id_parcel), "insee": r.insee,
+                       "ha": round(r.ha, 2), "images_sans_nuage": len(_propres(p)), "etat": etat,
+                       "raison": raison})
+    t = pd.DataFrame(lignes)
+    t.to_csv(DOSSIER / "petites_parcelles.csv", index=False, encoding="utf-8")
+    return t
+
+
 def verifier(annee=2025, travailleurs=6):
     """Mesure toutes les parcelles des échantillons sur l'année et écrit les preuves dans
     verification/sentinel2/ : parcelles.csv (une ligne par parcelle : état, raison, état selon la
@@ -490,7 +531,8 @@ def mesures(annee=None):
     f = bloc(annee)[0]
     if not f.exists():
         return pd.DataFrame(columns=["id_rpg", "insee", "ha", "etat"])
-    return pd.read_csv(f, dtype={"insee": str, "id_rpg": str}).drop_duplicates("id_rpg")
+    # on_bad_lines : une ligne en cours d'écriture par la mesure en cours ne fait pas échouer la lecture
+    return pd.read_csv(f, dtype={"insee": str, "id_rpg": str}, on_bad_lines="skip").drop_duplicates("id_rpg")
 
 
 def communes_a_aller_voir():
@@ -515,17 +557,38 @@ VERROU_PERIME_S = 600     # sans nouvelle depuis 10 min, le calcul est considér
 SECONDES_PAR_PARCELLE = 3.5  # mesuré : environ 17 parcelles par minute avec 10 requêtes parallèles
 
 
+SURFACE_MIN_HA = 0.25   # 25 pixels de 10 m ; règle testée sur les petites parcelles (valider_petites)
+
+
 def parcelles_cibles(insees=None):
-    """Les prairies de la première année d'au moins 1 ha, sorties à 90 % ou plus de la déclaration la
-    dernière année, dans les communes données (toutes par défaut) : index de prairies(première année),
-    commune et surface (sans géométrie)."""
-    from .suivi import devenir
+    """Les prairies de la première année dont la plus grande part est sortie de la déclaration la
+    dernière année (la couleur « sortie » de la carte de Ma commune), et dont la part sortie fait au
+    moins SURFACE_MIN_HA, dans les communes données (toutes par défaut). Index de prairies(première
+    année) ; colonnes : commune, entiere (sortie à 90 % ou plus : on mesure la parcelle entière ;
+    sinon, seulement la part sortie) et ha (la surface mesurée)."""
+    from .suivi import CATEGORIES, devenir
     a0, an = periode()
     d = devenir(a0, an)
     if insees is None:
         insees = d.insee.dropna().unique()
-    m = d.insee.isin(list(insees)) & (d.ha >= 1) & (d["non déclaré"] > 0.9 * d.ha)
-    return d.loc[m.values, ["insee", "ha"]]
+    sortie = d[[c for c in CATEGORIES if c in d]].idxmax(axis=1) == "non déclaré"
+    d = d[(d.insee.isin(list(insees)) & sortie & (d["non déclaré"] >= SURFACE_MIN_HA)).values]
+    entiere = d["non déclaré"] > 0.9 * d.ha
+    return pd.DataFrame({"insee": d.insee, "entiere": entiere, "ha": d.ha.where(entiere, d["non déclaré"])},
+                        index=d.index)
+
+
+def _part_sortie(g, annee):
+    """La part de chaque parcelle qui n'est plus déclarée l'année donnée : la parcelle moins toutes les
+    parcelles déclarées cette année-là qui la touchent."""
+    import shapely
+
+    from .donnees import rpg
+    d = rpg(annee).geometry.values
+    il, ir = shapely.STRtree(d).query(g.geometry.values, predicate="intersects")
+    voisins = pd.Series(ir).groupby(il).apply(list)
+    return [shapely.difference(geo, shapely.union_all(d[voisins[k]])) if k in voisins.index else geo
+            for k, geo in enumerate(g.geometry.values)]
 
 
 def deja_mesurees(annee=None):
@@ -577,7 +640,11 @@ def verifier_communes(insees=None, annee=None, travailleurs=10):
         insees = prio + second
     cibles = parcelles_cibles(insees)
     g = prairies(a0).loc[cibles.index, ["id_parcel", "geometry"]].copy()
-    g["insee"], g["ha"] = cibles.insee.values, cibles.ha.values
+    g["insee"], g["ha"], g["entiere"] = cibles.insee.values, cibles.ha.values, cibles.entiere.values
+    # Sortie en partie : on ne mesure que la part sortie (la part encore déclarée est connue)
+    partielles = ~g.entiere & ~g.id_parcel.astype(str).isin(deja_mesurees(annee))
+    if partielles.any():
+        g.loc[partielles, "geometry"] = _part_sortie(g[partielles], an)
     g["priorite"] = np.select([g.insee.isin(prio), g.insee.isin(second)],
                               ["prioritaire", "secondaire"], "autre")
     g["id_rpg"] = g.id_parcel.astype(str)
@@ -657,10 +724,48 @@ def pourquoi_indetermines(m):
     return "trop peu d'images sans nuage" if nuages == len(r) else "trop de nuages, ou signal entre les deux"
 
 
+HERBE = ["toujours", "verte", "temporaire"]           # encore en herbe
+PAS_HERBE = ["culture", "labouree", "batie", "autre"]  # plus en herbe
+CLASSES = HERBE + PAS_HERBE + ["verifier"]
+
+
+def herbe_reelle(annee=None):
+    """Ce que sont devenues, en hectares, les prairies de la première année, commune par commune, avec
+    les mêmes classes que la carte de Ma commune : en herbe (toujours en prairie, sortie restée verte,
+    prairie temporaire), pas en herbe (culture, sortie labourée, sortie bâtie, bois/lande/autre), et à
+    vérifier (sortie que le satellite ne tranche pas ou ne mesure pas). La part sortie d'une parcelle
+    « sortie » (sa plus grande part n'est plus déclarée) prend le verdict du satellite ; la part non
+    déclarée d'une autre parcelle (une bordure : écart de contour d'une année à l'autre) suit la plus
+    grande part de sa parcelle, comme sur la carte. Index : insee ; colonnes : dep et les CLASSES."""
+    from .donnees import prairies
+    from .suivi import CATEGORIES, devenir
+    a0, _ = periode()
+    d = devenir(a0, annee or periode()[1])
+    cats = [c for c in CATEGORIES if c in d]
+    majeure = d[cats].idxmax(axis=1)
+    m = mesures(annee).set_index("id_rpg").etat
+    etat = prairies(a0).loc[d.index, "id_parcel"].astype(str).map(m)
+    nd = d["non déclaré"].where(majeure == "non déclaré", 0.0)        # les vraies sorties
+    bord = d["non déclaré"] - nd                                       # les bordures
+    groupe = majeure.map({"prairie permanente": "toujours", "prairie temporaire": "temporaire",
+                          "culture": "culture"}).fillna("autre")
+    out = pd.DataFrame({"insee": d.insee, "dep": d.dep,
+                        "toujours": d["prairie permanente"], "temporaire": d["prairie temporaire"],
+                        "culture": d.culture,
+                        "autre": d[[c for c in ("boisement", "estive, lande", "autre") if c in d]].sum(axis=1)})
+    for cle in ("toujours", "temporaire", "culture", "autre"):  # chaque bordure suit sa parcelle
+        out[cle] += bord.where(groupe == cle, 0.0)
+    for cle, e in (("verte", "couvert permanent"), ("labouree", "labourée"), ("batie", "bâti ou minéral")):
+        out[cle] = nd.where(etat == e, 0.0)
+    out["verifier"] = nd.where(~etat.isin(["couvert permanent", "labourée", "bâti ou minéral"]), 0.0)
+    out = out[out.insee.notna()]
+    return out.groupby("insee").agg({"dep": "first", **{c: "sum" for c in CLASSES}})
+
+
 def resume_mesures(insee=None, annee=None):
     """Ce que le bloc des mesures dit des prairies sorties de la déclaration, pour la région ou pour
     une commune : parcelles et hectares mesurés, restés verts, labourés, bâtis ou minéraux,
-    indéterminés, et la cible (prairies sorties d'au moins 1 ha). None si rien n'est mesuré."""
+    indéterminés, et la cible (voir parcelles_cibles). None si rien n'est mesuré."""
     m = mesures(annee)
     if insee is not None:
         m = m[m.insee == insee]

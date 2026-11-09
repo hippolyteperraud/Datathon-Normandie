@@ -44,9 +44,13 @@ def _draaf(periode, suivi):
                       for k, draaf in AGRICULTEUR_ACTIF["prairies_par_dep_ha"].items()
                       for src, v in (("DRAAF Normandie", draaf), ("Prairimètre", p.get(k, 0)))])
     return alt.Chart(d).mark_bar(cornerRadiusEnd=3, height=10).encode(
-        y=alt.Y("département:N", title=None, sort=None, axis=alt.Axis(labelOverlap=False)),
-        yOffset="source:N", x=alt.X("ha:Q", title="hectares sortis", axis=alt.Axis(labelExpr=AXE_FR)),
-        color=alt.Color("source:N", title=None, legend=alt.Legend(orient="bottom"),
+        y=alt.Y("département:N", title=None, sort=None,
+                axis=alt.Axis(labelOverlap=False, ticks=False, domain=False, labelFontSize=12)),
+        yOffset="source:N",
+        x=alt.X("ha:Q", title="prairies sorties de la déclaration en 2023",
+                axis=alt.Axis(labelExpr=AXE_FR + " + ' ha'", tickCount=5, domain=False, ticks=False,
+                              gridOpacity=0.35)),
+        color=alt.Color("source:N", title=None, legend=alt.Legend(orient="top"),
                         scale=alt.Scale(range=["#8a897f", ORANGE])),
         tooltip=[alt.Tooltip("département:N"), alt.Tooltip("source:N"),
                  alt.Tooltip("valeur:N", title="ha")]).properties(height=240)

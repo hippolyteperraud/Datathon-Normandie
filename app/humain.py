@@ -1,4 +1,4 @@
-"""Touches humaines : illustration du bocage, pourquoi les prairies comptent, signature."""
+"""Touches humaines : illustration du bocage, pourquoi les prairies comptent."""
 import streamlit as st
 
 
@@ -68,10 +68,3 @@ def pourquoi():
     """Pourquoi les prairies comptent, en quatre phrases."""
     for col, (titre, texte) in zip(st.columns(4), RAISONS):
         col.markdown(f"**{titre}**  \n{texte}")
-
-
-def signature():
-    st.divider()
-    st.caption("Prairimètre, Datathon Normandie 2026, par Hippolyte Perraud (INSA Rouen) et "
-               "Mouhssine Bairoune (ENSI Caen). Données ouvertes : IGN, ASP, Agreste, Sandre, "
-               "DREAL Normandie, MNHN.")

@@ -105,9 +105,8 @@ pret = not manquantes()  # sans résultats, seul l'onglet Recalculer sert : y la
 st.title("Technique")
 if pret:
     exiger_sorties()  # prévient si un registre plus récent que les résultats est en local
-preuves, a_part, sources, mots, moteur = st.tabs(
-    ["Preuves", "Années à part", "Sources", "Les mots", "Recalculer"])
-SANS_RESULTATS = "Pas encore de résultats : lancez le calcul dans l'onglet Recalculer."
+moteur, preuves, sources = st.tabs(["Moteur", "Preuves", "Sources"])
+SANS_RESULTATS = "Pas encore de résultats : lancez le calcul dans l'onglet Moteur."
 
 # --- Preuves : ce qui fonde chaque chiffre de l'appli -----------------------------------------------
 with preuves:
@@ -135,17 +134,20 @@ with preuves:
             with g1:
                 d = s[["rpg_variation", "saa_variation"]].dropna().reset_index().melt(
                     "annee", var_name="source", value_name="ha")
-                d["source"] = d.source.map({"rpg_variation": "prairies déclarées (RPG)",
-                                            "saa_variation": "statistique agricole annuelle"})
+                d["source"] = d.source.map({"rpg_variation": "registre PAC",
+                                            "saa_variation": "statistique agricole"})
                 d["variation"] = d.ha.map(lambda x: ha(x, signe=True))
                 barres = alt.Chart(d).mark_bar(cornerRadiusEnd=3).encode(
-                    x=alt.X("annee:O", title=None, axis=alt.Axis(labelAngle=0)),
-                    xOffset="source:N",
-                    y=alt.Y("ha:Q", title="variation (ha/an)",
-                            axis=alt.Axis(labelExpr=AXE_FR)),
+                    x=alt.X("annee:O", title=None, axis=alt.Axis(labelAngle=0, ticks=False, domain=False)),
+                    xOffset=alt.XOffset("source:N", sort=["statistique agricole", "registre PAC"]),
+                    y=alt.Y("ha:Q", title=None,
+                            axis=alt.Axis(labelExpr=AXE_FR + " + ' ha'", tickCount=4, domain=False,
+                                          ticks=False, gridOpacity=0.35)),
                     color=alt.Color("source:N", title=None,
-                                    legend=alt.Legend(orient="bottom", labelLimit=0),
-                                    scale=alt.Scale(range=[CAT[0], CAT[1]])),
+                                    legend=alt.Legend(orient="top", labelLimit=0, title="Variation par an :",
+                                                      titleOrient="left"),
+                                    scale=alt.Scale(domain=["statistique agricole", "registre PAC"],
+                                                    range=["#6f6e66", CAT[0]])),
                     tooltip=[alt.Tooltip("annee:O", title="année"), alt.Tooltip("source:N"),
                              alt.Tooltip("variation:N")])
                 st.altair_chart(barres.properties(height=220), width="stretch")
@@ -207,25 +209,27 @@ with preuves:
             d["texte"] = d.rapport_meme_commune.map(lambda v: nombre(v, 2))
             d["retournees"] = d.retourne_ha.map(ha)
             d["zonage"] = d.zonage.map(NOMS_ZONAGES)
-            barres = alt.Chart(d).mark_bar(cornerRadiusEnd=4, height=14).encode(
-                y=alt.Y("zonage:N", sort=alt.EncodingSortField("rapport_meme_commune"), title=None,
-                        axis=alt.Axis(labelLimit=260, ticks=False)),
+            ordre = list(d.sort_values("rapport_meme_commune").zonage)  # le plus protecteur en haut
+            barres = alt.Chart(d).mark_bar(cornerRadiusEnd=4, height=16).encode(
+                y=alt.Y("zonage:N", sort=ordre, title=None,
+                        axis=alt.Axis(labelLimit=260, ticks=False, domain=False, labelFontSize=12,
+                                      labelOverlap=False)),
                 x=alt.X("rapport_meme_commune:Q",
-                        title="retournement dans le zonage / reste de la même commune",
-                        axis=alt.Axis(labels=False, ticks=False)),
+                        title="retournement dans le zonage / reste de la même commune (1 = autant)",
+                        axis=alt.Axis(labels=False, ticks=False, grid=False, domain=False)),
                 color=alt.Color("famille:N", title=None,
-                                legend=alt.Legend(orient="bottom", labelLimit=0),
+                                legend=alt.Legend(orient="top", labelLimit=0),
                                 scale=alt.Scale(domain=list(COULEURS_FAMILLES),
                                                 range=list(COULEURS_FAMILLES.values()))),
                 tooltip=[alt.Tooltip("zonage:N"), alt.Tooltip("famille:N"),
                          alt.Tooltip("texte:N", title="rapport"),
                          alt.Tooltip("retournees:N", title="retournées dedans")])
-            textes = alt.Chart(d).mark_text(align="left", dx=4, fontSize=11, color="#52514e").encode(
-                y=alt.Y("zonage:N", sort=alt.EncodingSortField("rapport_meme_commune")),
+            textes = alt.Chart(d).mark_text(align="left", dx=4, fontSize=12, color="#52514e").encode(
+                y=alt.Y("zonage:N", sort=ordre),
                 x="rapport_meme_commune:Q", text="texte:N")
             regle = alt.Chart(pd.DataFrame({"x": [1]})).mark_rule(color="#52514e", strokeDash=[4, 3]) \
                 .encode(x="x:Q")
-            st.altair_chart((barres + textes + regle).properties(height=340), width="stretch")
+            st.altair_chart((barres + textes + regle).properties(height=32 * len(d)), width="stretch")
             terrain = evaluation("terrain")
             a_terrain_egal = ""
             if terrain is not None and len(terrain) == 3:
@@ -312,11 +316,7 @@ with preuves:
             "- La richesse écologique des prairies n'est cartographiée que dans les sites Natura "
             "2000 de l'ouest de la région.")
 
-# --- Années à part : 2019, 2023, le ratio de la PAC ---------------------------------------------------
-with a_part:
-    if not pret:
-        st.info(SANS_RESULTATS)
-    else:
+        st.subheader("6. Pourquoi certaines années sortent-elles du lot ?")
         from annees import afficher as afficher_annees
         afficher_annees()
 
@@ -348,14 +348,13 @@ with sources:
     st.markdown("**Textes officiels : l'objectif et les années à part**\n"
                 + "\n".join(f"- [{t}]({lien}) : {objet}" for t, lien, objet in textes))
 
-# --- Les mots ---------------------------------------------------------------------------------------
-with mots:
+    st.markdown("**Les mots de l'outil**")
     lignes = [f"**{mot}** : {sens}" for mot, sens in MOTS.items()]
     milieu = (len(lignes) + 1) // 2
-    for colonne, partie in zip(st.columns(2), (lignes[:milieu], lignes[milieu:])):
+    for colonne, partie in zip(st.columns(2, gap="large"), (lignes[:milieu], lignes[milieu:])):
         colonne.markdown("  \n".join(partie))
 
-# --- Recalculer : deux boutons, le registre PAC et les images satellite --------------------------------
+# --- Moteur : trois mises à jour, un bouton chacune ------------------------------------------------------
 with moteur:
     import json
     import subprocess
@@ -384,6 +383,12 @@ with moteur:
         a = json.loads(F_MAJ.read_text(encoding="utf-8"))
         return a if psutil.pid_exists(a["pid"]) else None
 
+    def lancer_mise_a_jour(args, quoi):
+        pid = lancer_detache(args, JOURNAL_MAJ)
+        F_MAJ.write_text(json.dumps({"pid": pid, "debut": time.time(), "quoi": quoi}), encoding="utf-8")
+        st.toast("Mise à jour lancée.")
+        st.rerun()
+
     @st.cache_data(ttl=6 * 3600, show_spinner=False)
     def publies():
         """Millésimes du registre publiés par l'IGN (vérifié au plus toutes les 6 heures)."""
@@ -393,72 +398,95 @@ with moteur:
         except Exception:
             return None
 
-    # 1. Le registre PAC : chaque année, un nouveau millésime ----------------------------------------
-    st.markdown("#### Le registre PAC")
-    A = annees()
-    pub = publies()
-    nouveau = max(pub) if pub and A and max(pub) > A[-1] else None
+    @st.cache_data(ttl=6 * 3600, show_spinner=False)
+    def agreste_publie():
+        """Dernières séries longues publiées par Agreste : (dernière année, provisoire ?), ou None."""
+        if str(RACINE) not in sys.path:
+            sys.path.insert(0, str(RACINE))
+        try:
+            import importer_donnees
+            m = re.search(r"(\d{4})-(\d{4})_Donnees(\w+?)-", importer_donnees.archive_agreste())
+            return (int(m.group(2)), m.group(3).lower().startswith("provisoire")) if m else None
+        except Exception:
+            return None
+
+    st.markdown("Le moteur refait tous les chiffres de l'appli à partir de trois sources ouvertes, chacune "
+                "mise à jour d'un bouton. Un calcul continue même si l'on ferme l'appli ; un seul à la fois.")
 
     @st.fragment(run_every="20s")
-    def suivi_registre():
-        a = mise_a_jour_en_cours()
+    def suivi():
+        """Le calcul en cours, s'il y en a un : son avancement, sur toute la largeur."""
+        a, s = mise_a_jour_en_cours(), sen.avancement()
         if a:
             lignes = JOURNAL_MAJ.read_text(encoding="utf-8", errors="replace").strip().splitlines()
-            st.info(f"Mise à jour en cours depuis {nombre((time.time() - a['debut']) / 60)} min "
-                    "(environ 1 h). Dernière étape :")
+            st.info(f"{a.get('quoi', 'Mise à jour')} en cours depuis "
+                    f"{nombre((time.time() - a['debut']) / 60)} min. Dernière étape :")
             st.code("\n".join(lignes[-6:]) or "démarrage…", language=None)
-        return a
+        if s:
+            reste = max(s["total"] - s["faits"], 0)
+            st.progress(min(s["faits"] / max(s["total"], 1), 1.0),
+                        text=f"Images satellite : {nombre(s['faits'])} parcelles sur {nombre(s['total'])}, "
+                             f"fin dans environ {nombre(reste * sen.SECONDES_PAR_PARCELLE / 3600, 1)} h.")
+        return bool(a or s)
 
-    en_cours_maj = suivi_registre()
-    if nouveau:
-        st.markdown(f"Registre installé : {A[0]}→{A[-1]}. **Le registre {nouveau} est publié par l'IGN.**")
-        etiquette = f"Installer le registre {nouveau} et tout recalculer"
-    else:
-        st.markdown(f"Registre installé : {A[0]}→{A[-1]}"
-                    + (", à jour." if pub else " (impossible de vérifier les publications de l'IGN)."))
-        etiquette = "Recalculer avec le registre actuel"
-    if st.button(etiquette, type="primary", icon=":material/agriculture:", key="registre",
-                 disabled=bool(en_cours_maj) or bool(sen.avancement()),
-                 help="Télécharge le nouveau registre, le contrôle, recalcule toutes les tables et les "
-                      "preuves (environ 1 h). Continue même si on ferme l'appli. Ensuite, lancer les "
-                      "images satellite pour la nouvelle année."):
-        pid = lancer_detache(["mettre-a-jour"] if nouveau else ["recalculer"], JOURNAL_MAJ)
-        F_MAJ.write_text(json.dumps({"pid": pid, "debut": time.time()}), encoding="utf-8")
-        st.toast("Mise à jour lancée.")
-        st.rerun()
+    occupe = suivi()
+    c1, c2, c3 = st.columns(3)
 
-    # 2. Les images satellite : les prairies sorties de la déclaration, une fois pour toutes ----------
-    st.divider()
-    st.markdown("#### Les images satellite",
-                help="Chaque prairie sortie de la déclaration (au moins 1 ha) est regardée sur toutes les "
-                     "images Sentinel-2 sans nuage de la dernière année du registre : restée verte, ou "
-                     "labourée. Les résultats sont rangés dans verification/sentinel2/<année>/ et l'appli "
-                     "ne fait que les lire : une parcelle déjà mesurée n'est jamais redemandée.")
+    # 1. Le registre PAC : chaque année, un nouveau millésime (IGN) ----------------------------------
+    with c1.container(border=True, height="stretch"):
+        st.markdown("##### :material/agriculture: Registre PAC",
+                    help="Les parcelles déclarées à la PAC (IGN), une carte par année : le compteur des "
+                         "prairies, commune par commune.")
+        A, pub = annees(), publies()
+        nouveau = max(pub) if pub and A and max(pub) > A[-1] else None
+        st.markdown(f"Installé : **{A[0]}→{A[-1]}**  \n"
+                    + (f"**Le registre {nouveau} est publié.**" if nouveau else
+                       "À jour." if pub else "Publications de l'IGN injoignables."))
+        if st.button(f"Installer {nouveau} et recalculer" if nouveau else "Recalculer",
+                     type="primary" if nouveau else "secondary", key="registre", disabled=occupe, width="stretch",
+                     help="Télécharge le nouveau registre, le contrôle, recalcule toutes les tables et les "
+                          "preuves (environ 1 h). Ensuite, lancer les images satellite de la nouvelle année."):
+            lancer_mise_a_jour(["mettre-a-jour"] if nouveau else ["recalculer"],
+                               f"Registre {nouveau}" if nouveau else "Recalcul")
 
-    @st.fragment(run_every="20s")
-    def suivi_satellite():
-        a, r = sen.avancement(), sen.resume_mesures()
-        if a:
-            reste = max(a["total"] - a["faits"], 0)
-            st.progress(min(a["faits"] / max(a["total"], 1), 1.0),
-                        text=f"En cours : {nombre(a['faits'])} parcelles sur {nombre(a['total'])}, fin dans "
-                             f"environ {nombre(reste * sen.SECONDES_PAR_PARCELLE / 3600, 1)} h.")
-        if r:
-            st.markdown(f"Images {sen.periode()[1]} : {nombre(r['parcelles'])} prairies sorties mesurées sur "
-                        f"{nombre(r['cible_parcelles'])}.")
-        else:
-            st.markdown(f"Images {sen.periode()[1]} : aucune prairie sortie mesurée.")
-        return a, r
+    # 2. La statistique agricole (Agreste) : la mesure officielle de l'objectif ----------------------
+    with c2.container(border=True, height="stretch"):
+        st.markdown("##### :material/query_stats: Statistique agricole",
+                    help="Les séries longues de la statistique agricole annuelle (Agreste) : l'herbe et la "
+                         "surface agricole de la région, la mesure officielle de l'objectif 2030.")
+        from prairimetre.donnees import saa_region
+        serie = saa_region()
+        installe = int(serie.index.max()) if len(serie) else None
+        p = agreste_publie()
+        nouvelle = p is not None and installe is not None and p[0] > installe
+        st.markdown((f"Installée : **jusqu'à {installe}**" if installe else "Pas encore installée.") + "  \n"
+                    + (f"**Les séries {p[0]} sont publiées.**" if nouvelle else
+                       f"À jour (dernière année {'provisoire' if p[1] else 'définitive'})." if p else
+                       "Site d'Agreste injoignable."))
+        if st.button(f"Installer {p[0]} et recalculer" if nouvelle else "Retélécharger et recalculer",
+                     type="primary" if nouvelle else "secondary", key="agreste", disabled=occupe,
+                     width="stretch",
+                     help="Télécharge les dernières séries d'Agreste (les chiffres provisoires deviennent "
+                          "définitifs l'année suivante), puis recalcule tout (environ 1 h)."):
+            lancer_mise_a_jour(["agreste"], "Statistique agricole")
 
-    en_cours_sat, r = suivi_satellite()
-    complet = r is not None and r["parcelles"] >= r["cible_parcelles"]
-    if st.button("Recalculer avec les images satellite", icon=":material/satellite_alt:", key="sat_lancer",
-                 disabled=bool(en_cours_sat) or bool(mise_a_jour_en_cours()) or complet,
-                 help="Mesure toutes les prairies sorties pas encore mesurées pour la dernière année du "
-                      "registre (environ 15 h la première fois, puis seulement les nouvelles). Continue même "
-                      "si on ferme l'appli."):
-        lancer_detache(["satellite"], sen.DOSSIER / "journal.txt")
-        st.toast("Mesure lancée.")
-        st.rerun()
-    if complet:
-        st.caption("Toutes les prairies sorties sont mesurées pour cette année.")
+    # 3. Les images satellite : les prairies sorties de la déclaration, une fois pour toutes ----------
+    with c3.container(border=True, height="stretch"):
+        st.markdown("##### :material/satellite_alt: Images satellite",
+                    help="Chaque prairie sortie de la déclaration (sa part sortie, dès 0,25 ha) est regardée sur toutes les "
+                         "images Sentinel-2 sans nuage de la dernière année du registre : restée verte, ou "
+                         "labourée. Les résultats sont rangés dans verification/sentinel2/<année>/ et l'appli "
+                         "ne fait que les lire : une parcelle déjà mesurée n'est jamais redemandée.")
+        r = sen.resume_mesures()
+        complet = r is not None and r["parcelles"] >= r["cible_parcelles"]
+        st.markdown(f"Images **{sen.periode()[1]}** : "
+                    + (f"{nombre(r['parcelles'])} prairies sorties mesurées sur {nombre(r['cible_parcelles'])}."
+                       if r else "aucune prairie sortie mesurée.") + "  \n"
+                    + ("Toutes sont mesurées." if complet else "Des prairies restent à mesurer."))
+        if st.button("Mesurer les prairies restantes", key="sat_lancer", disabled=occupe or complet,
+                     width="stretch",
+                     help="Mesure les prairies sorties pas encore mesurées pour la dernière année du registre "
+                          "(environ 15 h la première fois, puis seulement les nouvelles)."):
+            lancer_detache(["satellite"], sen.DOSSIER / "journal.txt")
+            st.toast("Mesure lancée.")
+            st.rerun()
