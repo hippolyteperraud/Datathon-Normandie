@@ -1,4 +1,12 @@
-"""Vérification par images satellite des prairies sorties de la déclaration.
+"""Vérification par images satellite des prairies sorties de la déclaration (prototype sur 30 parcelles).
+
+Articulation avec `prairimetre.sentinel` :
+- Ce module (`prairimetre.satellite`) correspond au premier volet d'audit et d'étude de faisabilité
+  sur un échantillon stratifié de 30 parcelles (6 par département, `verification/30_parcelles.csv`,
+  voir `verification/etude_faisabilite_satellite.md`).
+- Le module `prairimetre.sentinel` en est l'industrialisation automatique à l'échelle de toute la
+  Normandie (validation statistique sur 80 témoins et mesure des 21 636 parcelles sorties dans
+  `verification/sentinel2/`), utilisée directement par l'application et le rapport.
 
 Le registre parcellaire (RPG) ne dit pas ce que deviennent les prairies qui sortent de la
 déclaration PAC (55 539 ha entre 2018 et 2025) : encore en herbe, labourées sans être déclarées,

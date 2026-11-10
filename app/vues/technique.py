@@ -171,9 +171,11 @@ with preuves:
                     "Mais cette carte range prairies et cultures dans la même classe : elle ne dit "
                     "pas si l'herbe est encore là.")
         sat = None
+        sat_t = None
         try:
             from prairimetre.sentinel import DOSSIER as DOSSIER_SAT, bilan as bilan_sat
-            sat = bilan_sat(pd.read_csv(DOSSIER_SAT / "parcelles.csv", dtype={"id_rpg": str}))
+            sat_t = pd.read_csv(DOSSIER_SAT / "parcelles.csv", dtype={"id_rpg": str})
+            sat = bilan_sat(sat_t)
         except FileNotFoundError:
             pass
         if sat:
@@ -187,6 +189,56 @@ with preuves:
                 f"hasard, {s23['couvert']} des {s23['tranchees']} tranchées restent vertes toute l'année, "
                 "sans labour. Preuves, parcelle par parcelle, avec un lien vers la photo aérienne : "
                 "`verification/sentinel2/preuves.md`.")
+            f_img = DOSSIER_SAT / "images.csv"
+            f_photos = RACINE / "docs" / "rapport" / "figures" / "photos_aeriennes.png"
+            if f_img.exists() and sat_t is not None:
+                c_ndvi, c_ph = st.columns([1.15, 1], gap="large")
+                with c_ndvi:
+                    im = pd.read_csv(f_img, dtype={"id_rpg": str})
+                    im = im[(im.part_sale < 0.05) & im.ndvi.notna()].copy()
+                    lignes_ndvi = []
+                    temoins = [("validation prairie", "couvert permanent", "Prairie déclarée (témoin)",
+                                FLUX_COULEURS["prairie permanente"]),
+                               ("validation culture", "labourée", "Parcelle labourée (témoin)",
+                                FLUX_COULEURS["culture"]),
+                               ("sortie 2023", "couvert permanent", "Prairie sortie de la PAC en 2023",
+                                FLUX_COULEURS["non déclaré"])]
+                    for grp, et, lbl, _ in temoins:
+                        ids = sat_t[(sat_t.groupe == grp) & (sat_t.etat == et)].id_rpg
+                        sub = im[im.id_rpg.isin(ids)].groupby("id_rpg").ndvi
+                        if len(sub):
+                            sc = sub.apply(lambda v: (v < 0.25).sum()) * 100 + sub.size() \
+                                if et == "labourée" else sub.size()
+                            sel = im[im.id_rpg == sc.idxmax()].sort_values("date").copy()
+                            sel["profil"] = lbl
+                            sel["ndvi_txt"] = sel.ndvi.map(lambda v: nombre(v, 2))
+                            lignes_ndvi.append(sel[["date", "ndvi", "ndvi_txt", "profil"]])
+                    if lignes_ndvi:
+                        df_ndvi = pd.concat(lignes_ndvi, ignore_index=True)
+                        dom = [t[2] for t in temoins]
+                        rng = [t[3] for t in temoins]
+                        courbes = alt.Chart(df_ndvi).mark_line(point=True, strokeWidth=2).encode(
+                            x=alt.X("date:T", title=None,
+                                    axis=alt.Axis(format="%m/%y", tickCount=6, domain=False, ticks=False)),
+                            y=alt.Y("ndvi:Q", title="NDVI (images sans nuage)",
+                                    scale=alt.Scale(domain=[0, 0.95]),
+                                    axis=alt.Axis(tickCount=4, domain=False, ticks=False, gridOpacity=0.35)),
+                            color=alt.Color("profil:N", title=None,
+                                            legend=alt.Legend(orient="top", labelLimit=0),
+                                            scale=alt.Scale(domain=dom, range=rng)),
+                            tooltip=[alt.Tooltip("profil:N", title="parcelle"),
+                                     alt.Tooltip("date:T", title="date", format="%d/%m/%Y"),
+                                     alt.Tooltip("ndvi_txt:N", title="NDVI")])
+                        seuil = alt.Chart(pd.DataFrame({"y": [0.25], "t": ["sol nu sous 0,25"]}))
+                        r_seuil = seuil.mark_rule(color="#8a897f", strokeDash=[4, 3]).encode(y="y:Q")
+                        st.altair_chart((courbes + r_seuil).properties(height=230), width="stretch")
+                        st.caption("Profils NDVI 2025 sur images Sentinel-2 sans nuage : une prairie reste "
+                                   "au-dessus de 0,40 toute l'année ; un labour descend sous 0,25 (pointillés).")
+                with c_ph:
+                    if f_photos.exists():
+                        st.image(str(f_photos), width="stretch")
+                        st.caption("Quatre cas douteux vérifiés sur l'orthophoto IGN BD ORTHO (20 cm) : "
+                                   "pâtures, prés-vergers et prés à chevaux (contour de la parcelle en rouge).")
 
         # 2. Les règles et les zonages -----------------------------------------------------------------
         z = evaluation("zonages", index_col=0)

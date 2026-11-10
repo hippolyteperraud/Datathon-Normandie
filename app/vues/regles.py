@@ -63,31 +63,59 @@ with gauche:
                f"moins retournées), mais l'interdiction agit en plus. {nombre(100 * hors, 0)} ha sur 100 "
                "du retournement se font hors de tout zonage. Détail : Technique → Preuves.")
 
-# --- Les communes où ça va bien -----------------------------------------------------------------
+# --- Les communes où ça va bien, ou les 211 communes où agir en priorité ---------------------------
+calc = t[t.statut == "calculé"]
+ret = calc.retourne_recent.sort_values(ascending=False)
+liste_prio = list(ret.index[:int((ret.cumsum() / ret.sum() < 0.5).sum() + 1)])
+ROUGE = FLUX_COULEURS["culture"]
+
 with droite:
-    st.markdown(f"**Depuis {a0}, {nombre(len(gain))} communes gagnent des prairies, "
-                f"{nombre(len(gardent))} n'en perdent aucune.**")
-    couleur = {i: VERT_CLAIR for i in gardent} | {i: VERT for i in gain.index}
-
-    def info(i):
-        if i in gain.index:
-            return f"{ha(gain[i], signe=True)} de prairies sur d'anciennes cultures depuis {a0}"
-        return f"aucune prairie perdue depuis {a0}" if i in couleur else ""
-
+    vue_carte = st.segmented_control(
+        "Carte", ["Communes exemples", f"Où agir en priorité ({nombre(len(liste_prio))} communes)"],
+        default="Communes exemples", label_visibility="collapsed")
     g = communes_carte().copy()
-    g["couleur"] = [hex_rgb(couleur[i]) if i in couleur else hex_rgb(HORS, 55) for i in g.insee]
-    g["valeur"] = g.insee.map(info)
+    if vue_carte and vue_carte.startswith("Où agir"):
+        st.markdown(f"**{nombre(len(liste_prio))} communes sur {nombre(len(t))} concentrent la moitié du "
+                    f"retournement récent ({ha(ret.loc[liste_prio].sum())} sur {ha(ret.sum())}).**")
+        ens_prio = set(liste_prio)
+        g["couleur"] = [hex_rgb(ROUGE) if i in ens_prio else hex_rgb(HORS, 55) for i in g.insee]
+        g["valeur"] = [f"{ha(ret[i])} retournés récemment (liste prioritaire)" if i in ens_prio
+                       else (f"{ha(ret[i])} retournés récemment" if i in ret.index and ret[i] >= 1 else "")
+                       for i in g.insee]
+        legende_html = (f'<span style="color:{ROUGE}">■</span> les {nombre(len(liste_prio))} communes qui '
+                        f'portent 50 % du retournement récent &nbsp; '
+                        f'<span style="color:{HORS}">■</span> les autres')
+        aide_carte = ("Un clic sur une commune ouvre sa fiche parcellaire. Ces communes concentrent la "
+                      "moitié des surfaces de prairies retournées en culture sur les dernières années.")
+    else:
+        st.markdown(f"**Depuis {a0}, {nombre(len(gain))} communes gagnent des prairies, "
+                    f"{nombre(len(gardent))} n'en perdent aucune.**")
+        couleur = {i: VERT_CLAIR for i in gardent} | {i: VERT for i in gain.index}
+
+        def info(i):
+            if i in gain.index:
+                return f"{ha(gain[i], signe=True)} de prairies sur d'anciennes cultures depuis {a0}"
+            return f"aucune prairie perdue depuis {a0}" if i in couleur else ""
+
+        g["couleur"] = [hex_rgb(couleur[i]) if i in couleur else hex_rgb(HORS, 55) for i in g.insee]
+        g["valeur"] = g.insee.map(info)
+        legende_html = (f'<span style="color:{VERT}">■</span> gagnent au moins {GAIN_MINIMUM_HA} ha sur '
+                        f'd\'anciennes cultures &nbsp; <span style="color:{VERT_CLAIR}">■</span> ne perdent '
+                        f'rien &nbsp; <span style="color:{HORS}">■</span> les autres')
+        aide_carte = ("Un clic sur une commune ouvre sa fiche. Les nouvelles déclarations et les prairies "
+                      "temporaires devenues permanentes ne comptent pas comme un gain.")
     CLE = "carte_exemples"
     evt = st.pydeck_chart(deck([(g[["insee", "nom_officiel", "couleur", "valeur", "geometry"]], CLE)], g,
                                "<b>{nom_officiel}</b><br/>{valeur}", hauteur=280, zoom=6.25),
                           on_select="rerun", selection_mode="single-object", width="stretch", height=280,
                           key=CLE)
-    st.markdown(
-        f'<span style="color:{VERT}">■</span> gagnent au moins {GAIN_MINIMUM_HA} ha sur d\'anciennes '
-        f'cultures &nbsp; <span style="color:{VERT_CLAIR}">■</span> ne perdent rien &nbsp; '
-        f'<span style="color:{HORS}">■</span> les autres', unsafe_allow_html=True,
-        help="Un clic sur une commune ouvre sa fiche. Les nouvelles déclarations et les prairies "
-             "temporaires devenues permanentes ne comptent pas comme un gain.")
+    st.markdown(legende_html, unsafe_allow_html=True, help=aide_carte)
+    if vue_carte and vue_carte.startswith("Où agir"):
+        export_prio = calc.loc[liste_prio, ["nom_officiel", "dep", "epci_nom", f"pp_{a0}", f"pp_{an}",
+                                            "retourne_recent", "devenues_culture", "devenues_non_declare"]]
+        st.download_button(f"Télécharger la liste des {nombre(len(liste_prio))} communes prioritaires (CSV)",
+                           export_prio.to_csv().encode("utf-8"),
+                           file_name="communes_prioritaires_retournement.csv", mime="text/csv")
     clic = selection_carte(evt, CLE, "insee")
     if clic and clic != st.session_state.get(f"_clic_{CLE}"):  # un clic ne compte qu'une fois
         st.session_state[f"_clic_{CLE}"] = clic

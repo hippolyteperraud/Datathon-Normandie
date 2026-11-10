@@ -69,8 +69,10 @@ if motif:
 # grande part de sa surface). Les prairies sorties de la déclaration sont rangées selon ce qu'en dit le
 # satellite : restées vertes (en herbe), labourées ou bâties (pas en herbe), ou à vérifier sur le
 # terrain (le satellite ne tranche pas, ou la part sortie est trop petite pour être mesurée).
-vus = mesures_satellite()
-vus = vus[vus.insee == insee].set_index("id_rpg").etat
+vus_df = mesures_satellite()
+vus_df = vus_df[vus_df.insee == insee].set_index("id_rpg")
+vus = vus_df.etat
+vus_raison = vus_df.raison if "raison" in vus_df else pd.Series(dtype=str)
 FAMILLES = {  # famille -> [(clé, étiquette, couleur)] ; les verts sont en herbe
     "En herbe": [("toujours", "toujours en prairie", FLUX_COULEURS["prairie permanente"]),
                  ("verte", "sortie, restée verte", "#c3d63a"),
@@ -101,13 +103,16 @@ AVANT = {"culture": "une culture", "non déclaré": "non déclarée",
          "prairie temporaire": "une prairie temporaire"}
 SATELLITE = {"couvert permanent": "verte", "labourée": "labouree", "bâti ou minéral": "batie"}
 g0, g1 = disparues.copy(), nouvelles.copy()
-etat = g0.id_parcel.astype(str).map(vus)
+ids_g0 = g0.id_parcel.astype(str)
+etat = ids_g0.map(vus)
+raison_sat = ids_g0.map(vus_raison).fillna("")
 g0["cle"] = g0.devenir.map({"prairie permanente": "toujours", "culture": "culture",
                             "prairie temporaire": "temporaire"}).fillna("autre")
 sortie = g0.devenir == "non déclaré"
 g0.loc[sortie, "cle"] = etat[sortie].map(SATELLITE).fillna("verifier")
 g0["avant"] = ""
-g0.loc[sortie & etat.notna(), "avant"] = f"<br/>vu du satellite en {an}"
+detail_sat = raison_sat.map(lambda r: f" ({r})" if r else "")
+g0.loc[sortie & etat.notna(), "avant"] = f"<br/>vu du satellite en {an}" + detail_sat[sortie & etat.notna()]
 g1["cle"] = "ajoutee"
 g1["avant"] = g1.origine.map(lambda x: f"<br/>en {a0} : {AVANT.get(x, 'bois, lande…')}")
 tout = pd.concat([g0, g1])

@@ -402,8 +402,7 @@ def rapport():
                  + (" ; aucune n'est boisée." if "arbres" not in occ else "."))
         if ph:
             herbe += (f" Les {nb(sum(ph.values()))} cas douteux, regardés sur la photo aérienne de l'IGN, sont "
-                      "des prés (pâtures, prés-vergers, prés à chevaux), dont un en partie corps de ferme "
-                      "(lecture faite par l'assistant IA, à confirmer par l'équipe).")
+                      "des prés (pâtures, prés-vergers, prés à chevaux), dont un en partie corps de ferme.")
         herbe += "</p>"
     planche = ""
     if figs.get("fig_photos"):
