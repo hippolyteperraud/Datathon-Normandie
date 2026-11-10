@@ -1,0 +1,53 @@
+{
+ "annee": 2025,
+ "images": 675,
+ "morceaux": 160672,
+ "ha_etat": {
+  "bâti ou minéral": 1043,
+  "couvert permanent": 138469,
+  "indéterminé": 61083,
+  "labourée": 20337
+ },
+ "estimation": {
+  "total": 184384,
+  "jamais": 125997,
+  "deja": 58387
+ },
+ "intervalle": {
+  "total": [
+   180271,
+   189462
+  ],
+  "jamais": [
+   123424,
+   129239
+  ],
+  "deja": [
+   56347,
+   61307
+  ]
+ },
+ "tirages": 300,
+ "etalons": {
+  "herbe": 15000,
+  "culture": 13418
+ },
+ "etalons_pct": {
+  "herbe": {
+   "bâti ou minéral": 0.0,
+   "couvert permanent": 75.3,
+   "indéterminé": 22.2,
+   "labourée": 2.5
+  },
+  "culture": {
+   "bâti ou minéral": 0.5,
+   "couvert permanent": 0.2,
+   "indéterminé": 1.5,
+   "labourée": 97.8
+  }
+ },
+ "temoins": 21636,
+ "temoins_meme_etat_pct": 91.3,
+ "temoins_tranchent": 15845,
+ "temoins_tranchent_accord": 15798
+}

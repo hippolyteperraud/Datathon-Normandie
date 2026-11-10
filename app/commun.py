@@ -87,7 +87,7 @@ def table(nom):
 
 
 @st.cache_data(show_spinner=False)
-def _lire(nom, _date):
+def _lire(nom, date):  # « date » sans tiret bas : Streamlit ne hache pas les arguments « _… »
     if nom == "bilan_direct":
         return pd.read_csv(SORTIES / "bilan_direct.csv", header=[0, 1], index_col=0)
     t = pd.read_csv(SORTIES / f"{nom}.csv", dtype={"insee": str, "epci": str, "dep": str,
@@ -103,7 +103,7 @@ def evaluation(nom, **kw):
 
 
 @st.cache_data(show_spinner=False)
-def _evaluation(nom, _date, **kw):
+def _evaluation(nom, date, **kw):
     return pd.read_csv(SORTIES / f"evaluation_{nom}.csv", **kw)
 
 
@@ -269,7 +269,7 @@ def communes_carte():
 
 
 @st.cache_data(show_spinner="Préparation de la carte…")
-def _communes_carte(_date):
+def _communes_carte(date):
     def f():
         from prairimetre.donnees import communes
         g = communes()[["insee", "nom_officiel", "dep", "epci", "geometry"]].copy()

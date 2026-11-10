@@ -5,16 +5,36 @@ affichés que si les données du moteur montrent l'année concernée comme à pa
 # L'objectif régional, tel qu'écrit dans la Stratégie régionale pour la biodiversité (SRB)
 OBJECTIF_REGIONAL = {
     "objectif": "Atteindre zéro perte nette de prairies permanentes à l'échelle normande à "
-                "l'horizon 2030",
-    "cible": "Maintenir les prairies permanentes à 39 % de la Surface Agricole Utile (Agreste, 2020, "
+                "l’horizon 2030",
+    # Citations mot pour mot de la fiche (texte copié dans data/references/pdf.txt)
+    "cible": "Maintenir les prairies permanentes à 39% de la Surface Agricole Utile (Agreste, 2020, "
              "données 2019)",
     "periode": "Maintenir autant de prairies permanentes entre 2021 et 2030",
+    "indicateur": "Surface des prairies permanentes : 39% de la Surface Agricole Utile (Agreste, 2020, "
+                  "données 2019)",
     "part_sau_pct": 39,
     # La cible a été fixée sur les chiffres 2019 publiés en 2020 ; Agreste a depuis révisé ses
     # séries (cohérence avec le recensement agricole 2020) : voir la part 2019 dans les séries longues
     "annee_cible": 2019,
     "texte": "Stratégie régionale pour la biodiversité Normandie 2030, objectif III.5, p. 47",
     "lien": "https://www.normandie.fr/sites/default/files/2023-05/srb-normandie-fiches-objectifs.pdf",
+}
+
+# Le suivi officiel de l'objectif, tel que la Région le publie : part de la STH dans la SAU d'après la
+# statistique agricole annuelle (SAA), référence 2021. Recalculée sur les séries longues Agreste
+# 2010-2025, la part 2021 vaut 37,69 % (778 625 / 2 066 023) : le bilan écrit 37,6 %.
+SUIVI_SRB = {
+    "annee_reference": 2021,
+    "parts_pct": {2021: 37.6, 2024: 37.4},
+    "sth_ha": {2021: 778625, 2024: 770754},
+    "texte": "Région Normandie, premier bilan 2022-2024 de la Stratégie régionale pour la biodiversité "
+             "(réponse des mentors du datathon, novembre 2026)",
+    # Citations mot pour mot de la réponse
+    "citations": ["Notre année de référence est 2021 (37,6% ; 778 625 ha).",
+                  "… un ratio de 37,4% de STH par rapport à la SAU (770 754 ha) en 2024."],
+    # Ce que le bilan dit de 2023 (hausse de la STH dans la SAA, chute dans le registre PAC)
+    "lecture_2023": "La chute brutale enregistrée par le registre PAC au printemps 2023 met du temps à "
+                    "être digérée et validée dans les modèles de la statistique agricole.",
 }
 
 # Le ratio officiel de prairies permanentes (BCAE 1), publié chaque année au Journal officiel. Il se

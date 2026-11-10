@@ -762,6 +762,37 @@ def herbe_reelle(annee=None):
     return out.groupby("insee").agg({"dep": "first", **{c: "sum" for c in CLASSES}})
 
 
+CLES_CARTE = {"en herbe": ["toujours", "verte", "temporaire", "ajoutee"],
+              "pas en herbe": ["culture", "labouree", "batie", "autre"],
+              "à vérifier": ["verifier"]}
+
+
+def herbe_carte(annee=None):
+    """Les cartes de Ma commune, additionnées : même règle que la carte (chaque parcelle compte en
+    entier dans la couleur de la plus grande part de sa surface). Une ligne par prairie de la
+    première année (toujours en prairie, temporaire, culture, autre ; sortie : verdict du satellite,
+    sinon « verifier ») et par prairie ajoutée depuis (« ajoutee », avec son origine dominante).
+    Colonnes : insee, dep, cle, origine, ha."""
+    from .donnees import prairies
+    from .suivi import CATEGORIES, devenir, origine
+    a0, an = periode()
+    an = annee or an
+    d, o = devenir(a0, an), origine(a0, an)
+    ids = prairies(a0).loc[d.index, "id_parcel"].astype(str)
+    dev, ori = d[CATEGORIES].idxmax(axis=1), o[CATEGORIES].idxmax(axis=1)
+    cle = dev.map({"prairie permanente": "toujours", "culture": "culture",
+                   "prairie temporaire": "temporaire"}).fillna("autre")
+    sortie = dev == "non déclaré"
+    vus = mesures(annee).set_index("id_rpg").etat
+    cle[sortie] = ids[sortie].map(vus).map({"couvert permanent": "verte", "labourée": "labouree",
+                                            "bâti ou minéral": "batie"}).fillna("verifier")
+    nouv = ori != "prairie permanente"
+    out = pd.concat([pd.DataFrame({"insee": d.insee, "dep": d.dep, "cle": cle, "origine": "", "ha": d.ha}),
+                     pd.DataFrame({"insee": o.insee[nouv], "dep": o.dep[nouv], "cle": "ajoutee",
+                                   "origine": ori[nouv], "ha": o.ha[nouv]})], ignore_index=True)
+    return out[out.insee.notna()].reset_index(drop=True)
+
+
 def resume_mesures(insee=None, annee=None):
     """Ce que le bloc des mesures dit des prairies sorties de la déclaration, pour la région ou pour
     une commune : parcelles et hectares mesurés, restés verts, labourés, bâtis ou minéraux,

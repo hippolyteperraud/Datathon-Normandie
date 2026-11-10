@@ -16,6 +16,8 @@ Sorties (dossier sorties/) :
   des terrains peu labourés ? Comparaisons à terrain égal ;
 - evaluation_bcae2.csv : retournement année par année dans les zones de la BCAE 2 (en vigueur au
   1er janvier 2025), avant et après.
+- evaluation_jeunes.csv : retournement des prairies permanentes selon ce qu'elles étaient la première
+  année (déjà permanentes, temporaires, cultures).
 """
 import json
 
@@ -26,7 +28,7 @@ from .config import DATA, MIN_HA, RECENT, SORTIES, annees
 from .donnees import (FAMILLES, HABITATS_PRAIRIAUX, ZONAGES, habitats_prairiaux, ocsge, prairies,
                       saa_region, sth)
 from .indicateurs import normandie, periodes, serie, zonages_annee
-from .suivi import croiser, devenir
+from .suivi import croiser, devenir, origine
 
 
 def _debut():
@@ -46,13 +48,26 @@ def _rapport_meme_commune(e, dedans):
     return t[("retourne", True)].sum() / attendu, len(t)
 
 
+def _sur_100(e, dedans):
+    """Les deux termes du rapport, en hectares retournés sur 100 ha de prairie du zonage (communes
+    qui ont des prairies dedans et dehors) : (observé dedans, attendu au taux d'à côté)."""
+    t = e.assign(d=dedans).groupby(["insee", "d"])[["ha", "retourne"]].sum().unstack("d").dropna()
+    if not len(t):
+        return np.nan, np.nan
+    attendu = (t[("retourne", False)] / t[("ha", False)] * t[("ha", True)]).sum()
+    surface = t[("ha", True)].sum()
+    return 100 * t[("retourne", True)].sum() / surface, 100 * attendu / surface
+
+
 def zonages():
     e, n = _debut()
     lignes = []
     for nom in ZONAGES + [f for f in FAMILLES] + ["enjeu"]:
         z = e[f"z_{nom}"]
         rapport, mixtes = _rapport_meme_commune(e, z)
+        dedans_100, a_cote_100 = _sur_100(e, z)
         lignes.append({
+            "sur_100_dedans": dedans_100, "sur_100_a_cote": a_cote_100,
             "zonage": nom, "famille": next((f for f, ns in FAMILLES.items() if nom in ns), nom),
             "part_des_prairies": e.ha[z].sum() / e.ha.sum(),
             "retourne_ha": e.retourne[z].sum(),
@@ -142,6 +157,31 @@ def prediction():
         "spearman": s.rank().corr(cible.rank()),
         "capture_top_10pct": _capture(s, cible, .1),
         "capture_top_20pct": _capture(s, cible, .2)} for nom, s in scores.items()}).T
+
+
+def jeunes_prairies(coupures=None):
+    """Idée testée : les prairies devenues permanentes depuis peu (temporaires ou cultures quelques
+    années avant) sont-elles plus retournées que les anciennes ? Pour chaque coupure, les prairies
+    permanentes de la coupure sont rangées selon ce qu'était la majeure partie de leur surface la
+    première année, puis on mesure leur retournement jusqu'à la dernière année."""
+    A = annees()
+    if coupures is None:
+        milieu = A[0] + (len(A) - 1) // 2 + 1
+        coupures = [c for c in (milieu - 1, milieu) if A[0] < c < A[-1]]
+    cats = ["prairie permanente", "prairie temporaire", "culture", "non déclaré"]
+    lignes = []
+    for c in coupures:
+        o, d = origine(A[0], c), devenir(c, A[-1])
+        parts = o[cats]
+        orig = parts.idxmax(axis=1).where(parts.max(axis=1) > 0.5 * o.ha, "mélange")
+        x = normandie(d.assign(origine=orig.values))
+        g = x.groupby("origine")[["ha", "culture"]].sum()
+        for nom, r in g.iterrows():
+            lignes.append({"origine": nom, "annee_origine": A[0], "coupure": c, "fin": A[-1],
+                           "ha": r.ha, "retourne": r.culture, "sur_100": 100 * r.culture / r.ha,
+                           "part_des_prairies": r.ha / g.ha.sum(),
+                           "part_du_retournement": r.culture / g.culture.sum()})
+    return pd.DataFrame(lignes)
 
 
 def sensibilite():
@@ -276,8 +316,10 @@ def terrain():
     for test, comparaison, dans, groupe in tests:
         x = e[dans]
         r, m = _rapport_meme_commune(x, groupe[dans])
+        dedans_100, a_cote_100 = _sur_100(x, groupe[dans])
         lignes.append({"test": test, "comparaison": comparaison, "rapport_meme_commune": r,
-                       "communes_mixtes": m, "ha_groupe": x.ha[groupe[dans]].sum()})
+                       "communes_mixtes": m, "ha_groupe": x.ha[groupe[dans]].sum(),
+                       "sur_100_dedans": dedans_100, "sur_100_a_cote": a_cote_100})
     return pd.DataFrame(lignes)
 
 
@@ -307,6 +349,7 @@ def evaluer(avec_certitude=True):
     robustesse().to_csv(SORTIES / "evaluation_robustesse.csv", index=False)
     concentration().to_csv(SORTIES / "evaluation_concentration.csv")
     prediction().to_csv(SORTIES / "evaluation_prediction.csv")
+    jeunes_prairies().to_csv(SORTIES / "evaluation_jeunes.csv", index=False)
     sensibilite().to_csv(SORTIES / "evaluation_sensibilite.csv", index=False)
     comparaison_saa().to_csv(SORTIES / "evaluation_saa.csv")
     habitats().to_csv(SORTIES / "evaluation_habitats.csv")

@@ -17,17 +17,21 @@ import streamlit as st  # noqa: E402
 
 from commun import equipe  # noqa: E402
 
-st.set_page_config(page_title="Prairimètre", page_icon=":material/grass:", layout="wide")
-st.logo(str(ICI / "assets" / "logo.svg"), size="large")
+# Le logo (fond blanc arrondi : lisible en thème clair comme sombre) et son emblème pour l'onglet du
+# navigateur, tirés de « Prairimètre, logo prairie moderne.png »
+st.set_page_config(page_title="Prairimètre", page_icon=str(ICI / "assets" / "icone_prairimetre.png"),
+                   layout="wide")
+st.logo(str(ICI / "assets" / "logo_prairimetre.png"), size="large")
 
 page = st.navigation([
     st.Page("vues/objectif.py", title="Objectif 2030", icon=":material/flag:", default=True),
-    st.Page("vues/regles.py", title="Ce qui marche", icon=":material/shield:"),
+    st.Page("vues/regles.py", title="Recommandations", icon=":material/lightbulb:"),
     st.Page("vues/commune.py", title="Ma commune", icon=":material/location_city:"),
     st.Page("vues/technique.py", title="Technique", icon=":material/build:"),
 ], position="top")  # le menu est un bandeau en haut de la page, toujours visible
 equipe()
 # Moins de vide en haut de page : chaque onglet doit tenir sur un écran de portable
 st.html("<style>[data-testid='stMainBlockContainer'] {padding-top: 4.2rem; padding-bottom: 2rem}"
-        "h1 {padding-top: 0.4rem !important}</style>")
+        "h1 {padding-top: 0.4rem !important}"
+        "[data-testid='stHeaderLogo'] {height: 2.6rem; max-width: 12rem}</style>")  # logo lisible
 page.run()
