@@ -7,8 +7,8 @@ import altair as alt
 import pandas as pd
 import streamlit as st
 
-from commun import (AXE_FR, CAT, MIN_HA, NEUTRE, OFFICIEL, aides_chiffres, bornes, comparaison,
-                    evaluation, exiger_sorties, ha, manquantes, nombre, pct, table)
+from commun import (AXE_FR, CAT, FLUX_COULEURS, MIN_HA, NEUTRE, OFFICIEL, RACINE, aides_chiffres,
+                    bornes, comparaison, evaluation, exiger_sorties, ha, manquantes, nombre, pct, table)
 from prairimetre.config import RECENT
 from prairimetre.donnees import FAMILLES as FAMILLES_ZONAGES
 from prairimetre.sources import SOURCES
@@ -481,7 +481,8 @@ with moteur:
                              f"fin dans environ {nombre(reste * sen.SECONDES_PAR_PARCELLE / 3600, 1)} h.")
         return bool(a or s)
 
-    occupe = suivi()
+    suivi()
+    occupe = bool(mise_a_jour_en_cours() or sen.avancement())
     c1, c2, c3 = st.columns(3)
 
     # 1. Le registre PAC : chaque année, un nouveau millésime (IGN) ----------------------------------
