@@ -309,5 +309,77 @@
   "US5": 118367,
   "US6.1": 424,
   "US6.3": 11573
+ },
+ "precision_taille": {
+  "seuil_ha": 5,
+  "petits": {
+   "classe": "moins de 5 ha",
+   "morceaux": 11970,
+   "reconnus": 10264,
+   "pct": 85.7,
+   "ic95": [
+    85.1,
+    86.4
+   ],
+   "ha_hors_pac": 99267
+  },
+  "grands": {
+   "classe": "5 ha et plus",
+   "morceaux": 2989,
+   "reconnus": 2956,
+   "pct": 98.9,
+   "ic95": [
+    98.5,
+    99.2
+   ],
+   "ha_hors_pac": 70735
+  },
+  "classes": [
+   {
+    "classe": "0,1 à 0,5 ha",
+    "morceaux": 5982,
+    "reconnus": 4841,
+    "pct": 80.9,
+    "ic95": [
+     79.9,
+     81.9
+    ],
+    "ha_hors_pac": 11783
+   },
+   {
+    "classe": "0,5 à 1 ha",
+    "morceaux": 2993,
+    "reconnus": 2630,
+    "pct": 87.9,
+    "ic95": [
+     86.7,
+     89.0
+    ],
+    "ha_hors_pac": 16654
+   },
+   {
+    "classe": "1 à 5 ha",
+    "morceaux": 2995,
+    "reconnus": 2793,
+    "pct": 93.3,
+    "ic95": [
+     92.3,
+     94.1
+    ],
+    "ha_hors_pac": 70830
+   },
+   {
+    "classe": "5 ha et plus",
+    "morceaux": 2989,
+    "reconnus": 2956,
+    "pct": 98.9,
+    "ic95": [
+     98.5,
+     99.2
+    ],
+    "ha_hors_pac": 70735
+   }
+  ],
+  "herbe_reconnue_surface_pct": 97.0
  }
 }

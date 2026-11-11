@@ -149,56 +149,84 @@ def aides_chiffres():
 
 
 # --- Glossaire --------------------------------------------------------------------------------
-# Chaque mot : (mot affiché, définition, formes reconnues dans le texte). Les formes sont des
-# expressions régulières JavaScript, sans tenir compte des majuscules ; une liste vide : le mot est
-# dans l'onglet Glossaire mais n'a pas de bulle (trop courant ou ambigu pour être repéré seul).
-def glossaire():
-    a = aides_chiffres()
-    return [
-        ("Agreste", "service de la statistique du ministère de l'Agriculture.", [r"Agreste"]),
-        ("Aire de captage", "zone où la pluie s'infiltre ou ruisselle pour rejoindre un captage d'eau "
-                            "potable (aire d'alimentation de captage, AAC).",
-         [r"aires? d['’]alimentation (?:de|des) captages?", r"aires? de captages?", r"AAC"]),
-        ("BCAE", "règles de la PAC (la 2 : zones humides et tourbières ; la 9 : prairies sensibles).",
-         [r"BCAE(?: \d)?"]),
-        ("Brut, net", "net = brut moins les prairies apparues dans la même commune.", []),
-        ("Chiffre officiel", a["Chiffre officiel"], [r"chiffres? officiels?"]),
-        ("EPCI", "communauté de communes, d'agglomération ou urbaine.", [r"EPCI"]),
-        ("Hubeau", "portail public des données sur l'eau ; il diffuse les analyses de nitrates des "
-                   "rivières.", [r"Hub['’]?eau"]),
-        ("MAEC, PSE", "aides pour garder ses prairies.", [r"MAEC", r"PSE"]),
-        ("Médiane", "la valeur du milieu : la moitié des valeurs est au-dessus, l'autre en dessous.",
-         [r"médianes?"]),
-        ("Natura 2000", "sites européens protégés.", [r"Natura 2000"]),
-        ("NDVI", "indice de verdure mesuré sur les images satellite, de −1 à 1 : haut pour de l'herbe "
-                 "qui pousse, bas pour de la terre nue.", [r"NDVI"]),
-        ("Nitrates", "forme de l'azote qui vient surtout des engrais et des effluents d'élevage ; au-delà "
-                     "de 50 mg/L, l'eau n'est plus potable.", [r"nitrates?"]),
-        ("OCS GE", "carte de l'occupation du sol (IGN).", [r"OCS GE"]),
-        ("PAC", "politique agricole commune : chaque année, les agriculteurs y déclarent leurs parcelles.",
-         [r"PAC"]),
-        ("Prairie déclarée", "en herbe depuis au moins 5 ans, déclarée à la PAC.",
-         [r"prairies? (?:permanentes? )?déclarées?"]),
-        ("Prairie permanente", "surface en herbe depuis au moins 5 ans, sans labour.",
+# Les mots de l'appli, rangés par thème : (mot affiché, définition, formes reconnues dans le texte).
+# Les formes sont des expressions régulières JavaScript, sans tenir compte des majuscules ; elles
+# posent une bulle sur le mot dans toutes les pages. Une liste vide : le mot est dans l'onglet
+# Glossaire mais n'a pas de bulle (trop courant ou ambigu pour être repéré seul).
+GLOSSAIRE = {
+    "Les chiffres officiels": [
+        ("Statistique agricole", "les chiffres annuels du ministère de l'Agriculture (Agreste). C'est elle qui "
+                                 "mesure l'objectif 2030.", [r"statistique agricole(?: annuelle)?"]),
+        ("Agreste", "le service de la statistique du ministère de l'Agriculture.", [r"Agreste"]),
+        ("Surface toujours en herbe", "dans la statistique agricole, l'herbe qui reste en place d'une année sur "
+                                      "l'autre : prairies permanentes, landes, parcours. La mesure de l'objectif "
+                                      "2030.", [r"surfaces? toujours en herbe", r"STH"]),
+        ("SAU", "surface agricole utilisée : terres cultivées, prairies et cultures permanentes.", [r"SAU"]),
+        ("Stratégie régionale pour la biodiversité", "le plan de la Région Normandie pour 2030 ; son objectif "
+                                                     "III.5 : zéro perte nette de prairies permanentes.",
+         [r"stratégie régionale pour la biodiversité"]),
+    ],
+    "Les prairies": [
+        ("Prairie permanente", "de l'herbe ni labourée ni remise en culture depuis au moins 5 ans.",
          [r"prairies? permanentes?"]),
-        ("Prairie temporaire", "herbe semée depuis moins de 5 ans ; elle devient permanente après "
-                               "5 ans.", [r"prairies? temporaires?"]),
-        ("Prairimètre", a["Prairimètre"], [r"Prairimètre"]),
-        ("Ratio officiel", a["Ratio officiel"], [r"ratios? officiels?"]),
-        ("Retournée", "labourée, puis déclarée en culture.",
-         [r"retourn(?:ée|ées|és|é)", r"retournements?"]),
-        ("RPG", "registre parcellaire graphique : la carte des parcelles déclarées à la PAC (IGN).",
-         [r"RPG"]),
-        ("Sandre", "service national des données sur l'eau ; il publie les aires de captage.",
-         [r"Sandre"]),
-        ("Sentinel-2", "satellites européens (programme Copernicus) qui photographient la Normandie "
-                       "tous les 5 jours, avec des pixels de 10 m.", [r"Sentinel-2"]),
-        ("Sortie de la déclaration", "plus dans le registre ; l'herbe peut être encore là.",
-         [r"sorties? de la déclaration"]),
-        ("Statistique agricole annuelle", "enquête du ministère de l'Agriculture.",
-         [r"statistique agricole(?: annuelle)?"]),
-        ("ZNIEFF", "inventaire de milieux naturels, sans effet sur le labour.", [r"ZNIEFF"]),
-    ]
+        ("Prairie temporaire", "de l'herbe semée depuis moins de 5 ans ; à la 6e année, elle devient permanente.",
+         [r"prairies? temporaires?"]),
+        ("Jeune prairie permanente", "devenue permanente depuis peu : quelques années avant, c'était une prairie "
+                                     "temporaire ou une culture.", [r"jeunes? prairies?(?: permanentes?)?"]),
+        ("Retournée", "labourée, puis remise en culture.", [r"retourn(?:ée|ées|és|é)", r"retournements?"]),
+    ],
+    "Le registre PAC": [
+        ("PAC", "politique agricole commune : pour toucher ses aides, les agriculteurs déclarent chaque année "
+                "leurs parcelles.", [r"PAC"]),
+        ("Registre PAC", "la carte des parcelles déclarées à la PAC, publiée chaque année par l'IGN (RPG).",
+         [r"registres? PAC", r"RPG"]),
+        ("Sortie de la PAC", "une parcelle qui n'est plus déclarée. L'herbe peut être encore là.",
+         [r"sorties? de la PAC", r"sorties? de la déclaration"]),
+        ("Ajoutée depuis 2018", "déclarée prairie permanente pour la première fois après 2018.",
+         [r"ajoutées? depuis \d{4}"]),
+    ],
+    "Le satellite": [
+        ("Sentinel-2", "satellites européens (Copernicus) qui photographient la Normandie tous les 5 jours, en "
+                       "pixels de 10 m.", [r"Sentinel-2"]),
+        ("NDVI", "indice de verdure tiré des images satellite : haut pour de l'herbe qui pousse, bas pour de la "
+                 "terre nue.", [r"NDVI"]),
+        ("Restée verte", "sortie de la PAC, mais verte toute l'année sur les images, sans trace de labour.",
+         [r"restées? vertes?"]),
+        ("À vérifier sur le terrain", "sortie de la PAC : les images ne tranchent pas, ou la parcelle est trop "
+                                      "petite pour être mesurée.", [r"à vérifier sur (?:le terrain|place)"]),
+        ("Angle mort de la statistique", "des prés sortis de la PAC avant 2023, toujours fauchés ou pâturés, "
+                                         "que la statistique agricole ne compte plus.", [r"angle mort"]),
+        ("OCS GE", "la carte de l'occupation du sol de l'IGN (2022 ou 2023 selon le département).", [r"OCS GE"]),
+        ("Photos aériennes", "les photos de l'IGN (BD ORTHO), regardées à l'œil pour contrôler le satellite.",
+         [r"photos aériennes"]),
+        ("Intervalle de confiance à 95 %", "la fourchette où se trouve la vraie valeur, avec 95 chances sur "
+                                           "100.", [r"intervalles? de confiance"]),
+    ],
+    "Les règles et les zones": [
+        ("BCAE", "règles environnementales à respecter pour toucher les aides de la PAC. BCAE 1 : garder assez de "
+                 "prairies dans la région ; BCAE 2 : protéger zones humides et tourbières (depuis 2025) ; BCAE 9 : "
+                 "ne pas retourner les prairies sensibles.", [r"BCAE(?: \d)?"]),
+        ("Prairie sensible", "prairie permanente d'un site Natura 2000 où le labour est interdit (BCAE 9).",
+         [r"prairies? sensibles?"]),
+        ("Autorisation régionale", "quand la part de prairies de la région baisse trop, retourner une prairie "
+                                   "demande une autorisation (en Normandie, en 2023-2024).",
+         [r"autorisations? régionales?"]),
+        ("Natura 2000", "réseau européen de sites naturels protégés.", [r"Natura 2000"]),
+        ("ZNIEFF", "inventaire de milieux naturels remarquables, sans effet sur le labour.", [r"ZNIEFF"]),
+        ("Zone de captage", "zone où la pluie rejoint un captage d'eau potable (aire d'alimentation de captage).",
+         [r"zones? de captages?(?: d['’]eau)?", r"aires? d['’]alimentation (?:de|des) captages?",
+          r"aires? de captages?"]),
+        ("Nitrates", "forme de l'azote qui vient surtout des engrais et des effluents d'élevage ; au-delà de "
+                     "50 mg/L, l'eau n'est plus potable.", [r"nitrates?"]),
+        ("Hub'Eau", "portail public des données sur l'eau ; il diffuse les analyses de nitrates des rivières.",
+         [r"Hub['’]?eau"]),
+    ],
+}
+
+
+def glossaire():
+    """Tous les mots, sans les thèmes : (mot, définition, formes)."""
+    return [m for mots in GLOSSAIRE.values() for m in mots]
 
 
 def bulles_glossaire():
