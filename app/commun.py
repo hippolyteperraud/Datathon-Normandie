@@ -237,9 +237,8 @@ def _script_glossaire(termes):
   CSS.highlights.set("glossaire", souligne);
   if (!doc.getElementById("gl-style")) {
     const s = doc.createElement("style"); s.id = "gl-style";
-    s.textContent = "::highlight(glossaire){text-decoration:underline dotted;"
-      + "text-decoration-thickness:1.5px;text-underline-offset:3px;text-decoration-color:#2a78d6}"
-      + ".gl-bulle{position:fixed;z-index:1000000;max-width:320px;padding:.5rem .7rem;border-radius:8px;"
+    // Aucun soulignement : le mot reste tel quel, la bulle s'ouvre au survol
+    s.textContent = ".gl-bulle{position:fixed;z-index:1000000;max-width:320px;padding:.5rem .7rem;border-radius:8px;"
       + "background:#262730;color:#fafafa;font:400 .82rem/1.35 'Source Sans Pro',sans-serif;"
       + "box-shadow:0 4px 14px rgba(0,0,0,.25);pointer-events:none;display:none}"
       + ".gl-bulle b{display:block;margin-bottom:.1rem}";
