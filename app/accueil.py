@@ -24,7 +24,8 @@ st.set_page_config(page_title="Prairimètre", page_icon=str(ICI / "assets" / "ic
 st.logo(str(ICI / "assets" / "logo_prairimetre.png"), size="large")
 
 page = st.navigation([
-    st.Page("vues/objectif.py", title="Objectif 2030", icon=":material/flag:", default=True),
+    st.Page("vues/presentation.py", title="Accueil", icon=":material/home:", default=True),
+    st.Page("vues/objectif.py", title="Objectif 2030", icon=":material/flag:"),
     st.Page("vues/regles.py", title="Recommandations", icon=":material/lightbulb:"),
     st.Page("vues/commune.py", title="Ma commune", icon=":material/location_city:"),
     st.Page("vues/technique.py", title="Technique", icon=":material/build:"),
