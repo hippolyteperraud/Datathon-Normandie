@@ -6,7 +6,7 @@ Les parcelles sont extraites à la demande par le moteur."""
 import pandas as pd
 import streamlit as st
 
-from commun import FLUX_COULEURS, bornes, deck, exiger_sorties, ha, hex_rgb, nombre, table
+from commun import FLUX_COULEURS, bornes, deck, exiger_sorties, ha, hex_rgb, nombre, table, titre_figure
 from prairimetre.indicateurs import parcelles_commune
 from prairimetre.sentinel import SURFACE_MIN_HA
 from prairimetre.sentinel import mesures as mesures_satellite
@@ -22,12 +22,12 @@ st.markdown("""
 [data-testid="stElementToolbar"], [data-testid="stElementToolbarButton"],
 button[title="View fullscreen"], .vega-embed details { display: none !important; }
 /* La page tient sur un écran, sans dérouler : la carte, à droite dès le haut de la page, prend la
-   hauteur de l'écran moins le menu et les marges (environ 150 px), et jamais moins de 360 px. Streamlit fixe la hauteur de la carte et de
+   hauteur de l'écran moins le menu, son titre et les marges (environ 185 px), et jamais moins de 360 px. Streamlit fixe la hauteur de la carte et de
    ses cadres (hauteur et flex-basis) : on les remplace toutes. */
 [data-testid="stElementContainer"]:has([data-testid="stDeckGlJsonChart"]),
 [data-testid="stFullScreenFrame"]:has(> [data-testid="stDeckGlJsonChart"]),
 [data-testid="stDeckGlJsonChart"], [data-testid="stDeckGlJsonChart"] > div {
-  height: max(360px, calc(100vh - 150px)) !important; flex: 0 0 auto !important; }
+  height: max(360px, calc(100vh - 185px)) !important; flex: 0 0 auto !important; }
 </style>""", unsafe_allow_html=True)
 
 
@@ -80,15 +80,15 @@ if not sur_carte > HERBE_MIN_HA:
 vus = mesures_satellite()
 vus = vus[vus.insee == insee].set_index("id_rpg").etat
 FAMILLES = {  # famille -> [(clé, étiquette, couleur)] ; les verts sont en herbe
-    "En herbe": [("toujours", "toujours en prairie", FLUX_COULEURS["prairie permanente"]),
-                 ("verte", "sortie, restée verte", "#c3d63a"),
-                 ("temporaire", "devenue prairie temporaire", "#4fb0a0"),
-                 ("ajoutee", f"ajoutée depuis {a0}", "#5cc04a")],
-    "Pas en herbe": [("culture", "retournée en culture", FLUX_COULEURS["culture"]),
-                     ("labouree", "sortie, labourée", "#7a4a2a"),
-                     ("batie", "sortie, bâtie", "#3b3b3b"),
-                     ("autre", "bois, lande, autre", "#9c8f7a")],
-    "À vérifier sur le terrain": [("verifier", "sortie, on ne sait pas", FLUX_COULEURS["non déclaré"])]}
+    "En herbe": [("toujours", "Toujours en prairie", FLUX_COULEURS["prairie permanente"]),
+                 ("verte", "Sortie, restée verte", "#c3d63a"),
+                 ("temporaire", "Devenue prairie temporaire", "#4fb0a0"),
+                 ("ajoutee", f"Ajoutée depuis {a0}", "#5cc04a")],
+    "Pas en herbe": [("culture", "Retournée en culture", FLUX_COULEURS["culture"]),
+                     ("labouree", "Sortie, labourée", "#7a4a2a"),
+                     ("batie", "Sortie, bâtie", "#3b3b3b"),
+                     ("autre", "Bois, lande, autre", "#9c8f7a")],
+    "À vérifier sur le terrain": [("verifier", "Sortie, on ne sait pas", FLUX_COULEURS["non déclaré"])]}
 ETIQUETTE = {cle: e for f in FAMILLES.values() for cle, e, _ in f}
 COULEUR = {cle: c for f in FAMILLES.values() for cle, _, c in f}
 AIDE = {"toujours": f"Encore déclarée en prairie permanente en {an}.",
@@ -103,6 +103,26 @@ AIDE = {"toujours": f"Encore déclarée en prairie permanente en {an}.",
         "autre": f"Déclarée en {an} en bois, lande, jachère ou autre surface.",
         "verifier": "Plus déclarée, et le satellite ne dit rien : signal entre prairie et labour, ou "
                     f"part sortie de moins de {nombre(SURFACE_MIN_HA, 2)} ha (trop peu de pixels)."}
+# D'où vient chaque catégorie : le registre PAC seul, ou le registre PAC et le satellite ensemble (le
+# registre dit que la prairie n'est plus déclarée, le satellite dit ce qu'elle est devenue). Affiché dans une
+# bulle au survol de la catégorie.
+PAC, LES_DEUX = "Selon le registre PAC", "Selon le registre PAC et le satellite"
+SOURCE = {"toujours": (PAC, f"déclarée en prairie permanente en {a0} et en {an}."),
+          "verte": (LES_DEUX, f"plus déclarée à la PAC ; le satellite la voit verte toute l'année {an}."),
+          "temporaire": (PAC, f"déclarée en prairie temporaire en {an}."),
+          "ajoutee": (PAC, f"déclarée en prairie permanente en {an}, pas en {a0}."),
+          "culture": (PAC, f"une culture est déclarée à la place en {an}."),
+          "labouree": (LES_DEUX, f"plus déclarée à la PAC ; le satellite la voit labourée en {an}."),
+          "batie": (LES_DEUX, f"plus déclarée à la PAC ; le satellite la voit sans végétation en {an}."),
+          "autre": (PAC, f"déclarée en bois, lande ou autre surface en {an}."),
+          "verifier": ("Selon le registre PAC, le satellite ne tranche pas",
+                       "plus déclarée à la PAC ; les images ne permettent pas de dire ce qu'elle est devenue.")}
+
+
+def _css(texte):
+    """Texte d'une bulle, prêt pour la propriété CSS content (guillemets échappés)."""
+    return texte.replace("\\", "\\\\").replace('"', '\\"')
+
 
 disparues, nouvelles = parcelles(insee, an)
 AVANT = {"culture": "une culture", "non déclaré": "non déclarée",
@@ -133,6 +153,18 @@ else:
             "[class*='st-key-echelle_'] [data-testid='stButtonGroup'] > div {flex-wrap: wrap; "
             "overflow: visible; row-gap: 0.3rem;}"
             "[class*='st-key-echelle_'] button[data-variant='pills'] {max-width: 100%; height: auto;}"
+            # La bulle de la source, au survol d'une catégorie
+            "[class*='st-key-echelle_'] button[data-variant='pills'] {position: relative; overflow: visible;}"
+            "[class*='st-key-echelle_'] button[data-variant='pills']::after {display: none; position: absolute; "
+            "left: 0; bottom: calc(100% + 7px); z-index: 1000; width: max-content; max-width: 250px; "
+            "padding: 7px 10px; border-radius: 7px; background: #1f2a24; color: #fff; font-size: 0.78rem; "
+            "font-weight: 400; line-height: 1.35; text-align: left; white-space: pre-line; "
+            "box-shadow: 0 2px 8px rgba(0,0,0,.25); pointer-events: none; opacity: 1;}"
+            "[class*='st-key-echelle_'] button[data-variant='pills']:hover::after {display: block;}"
+            + "".join(f".st-key-echelle_{k}_{insee} button[data-variant='pills']:nth-of-type({n})::after "
+                      f"{{content: \"{_css(SOURCE[cle][0])} :\\A {_css(SOURCE[cle][1][0].upper() + SOURCE[cle][1][1:])}\";}}"
+                      for k, famille in enumerate(FAMILLES.values())
+                      for n, (cle, _, _) in enumerate([x for x in famille if x[0] in presentes_toutes], 1))
             + "".join(f".st-key-echelle_{k}_{insee} button[data-variant='pills']:nth-of-type({n})::before "
                       f"{{background: {c};}}"
                       for k, famille in enumerate(FAMILLES.values())
@@ -163,6 +195,9 @@ else:
             g["t_ha"] = g.ha.map(lambda x: ha(x) if x >= 1 else f"{x:.2f} ha".replace(".", ","))
             couches.append((g[["libelle", "t_ha", "avant", "couleur", "geometry"]], nom))
     # La vue est calculée sur toutes les parcelles : masquer une couleur ne déplace pas la carte
+    titre_figure(f"Les prairies de {r.nom_officiel} : ce qu'elles sont devenues de {a0} à {an}", cible=carte,
+                 aide="Chaque parcelle a la couleur de la plus grande part de sa surface. Survoler une parcelle : "
+                      "ce qu'elle est devenue et sa surface. Cliquer sur une catégorie à gauche l'affiche ou la masque.")
     carte.pydeck_chart(deck(couches, tout, "<b>{libelle}</b><br/>{t_ha}{avant}", hauteur=720),
                        width="stretch", height=720)
     if not choix:

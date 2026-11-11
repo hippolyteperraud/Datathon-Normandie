@@ -8,7 +8,7 @@ import altair as alt
 import pandas as pd
 import streamlit as st
 
-from commun import AXE_FR, DEPARTEMENTS, OFFICIEL, bornes, evaluation, ha, nombre, table
+from commun import AXE_FR, DEPARTEMENTS, OFFICIEL, bornes, evaluation, ha, nombre, table, titre_figure
 from references import AGRICULTEUR_ACTIF, FIN_AUTORISATION_2019, RATIOS, REFERENCE_RATIO
 
 ORANGE = "#f0a202"
@@ -92,6 +92,7 @@ def afficher():
         with st.container(border=True):
             st.markdown(f"**{r.libelle}**\n" + "\n".join(f"- {p}" for p in points))
             if r.fin == 2023:
+                titre_figure("Prairies sorties de la déclaration en 2023, par département : DRAAF et Prairimètre")
                 st.altair_chart(_draaf(r.periode, suivi), width="stretch")
 
     st.markdown("**Le ratio de la PAC ne donne plus l'alerte.** Il compare la part des prairies dans la "

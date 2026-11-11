@@ -148,7 +148,173 @@ def aides_chiffres():
                               "2025)."}
 
 
-GAIN_MINIMUM_HA = 5    # en dessous, le gain pèse moins qu'une parcelle : ce n'est pas un exemple
+# --- Glossaire --------------------------------------------------------------------------------
+# Chaque mot : (mot affiché, définition, formes reconnues dans le texte). Les formes sont des
+# expressions régulières JavaScript, sans tenir compte des majuscules ; une liste vide : le mot est
+# dans l'onglet Glossaire mais n'a pas de bulle (trop courant ou ambigu pour être repéré seul).
+def glossaire():
+    a = aides_chiffres()
+    return [
+        ("Agreste", "service de la statistique du ministère de l'Agriculture.", [r"Agreste"]),
+        ("Aire de captage", "zone où la pluie s'infiltre ou ruisselle pour rejoindre un captage d'eau "
+                            "potable (aire d'alimentation de captage, AAC).",
+         [r"aires? d['’]alimentation (?:de|des) captages?", r"aires? de captages?", r"AAC"]),
+        ("BCAE", "règles de la PAC (la 2 : zones humides et tourbières ; la 9 : prairies sensibles).",
+         [r"BCAE(?: \d)?"]),
+        ("Brut, net", "net = brut moins les prairies apparues dans la même commune.", []),
+        ("Chiffre officiel", a["Chiffre officiel"], [r"chiffres? officiels?"]),
+        ("EPCI", "communauté de communes, d'agglomération ou urbaine.", [r"EPCI"]),
+        ("Hubeau", "portail public des données sur l'eau ; il diffuse les analyses de nitrates des "
+                   "rivières.", [r"Hub['’]?eau"]),
+        ("MAEC, PSE", "aides pour garder ses prairies.", [r"MAEC", r"PSE"]),
+        ("Médiane", "la valeur du milieu : la moitié des valeurs est au-dessus, l'autre en dessous.",
+         [r"médianes?"]),
+        ("Natura 2000", "sites européens protégés.", [r"Natura 2000"]),
+        ("NDVI", "indice de verdure mesuré sur les images satellite, de −1 à 1 : haut pour de l'herbe "
+                 "qui pousse, bas pour de la terre nue.", [r"NDVI"]),
+        ("Nitrates", "forme de l'azote qui vient surtout des engrais et des effluents d'élevage ; au-delà "
+                     "de 50 mg/L, l'eau n'est plus potable.", [r"nitrates?"]),
+        ("OCS GE", "carte de l'occupation du sol (IGN).", [r"OCS GE"]),
+        ("PAC", "politique agricole commune : chaque année, les agriculteurs y déclarent leurs parcelles.",
+         [r"PAC"]),
+        ("Prairie déclarée", "en herbe depuis au moins 5 ans, déclarée à la PAC.",
+         [r"prairies? (?:permanentes? )?déclarées?"]),
+        ("Prairie permanente", "surface en herbe depuis au moins 5 ans, sans labour.",
+         [r"prairies? permanentes?"]),
+        ("Prairie temporaire", "herbe semée depuis moins de 5 ans ; elle devient permanente après "
+                               "5 ans.", [r"prairies? temporaires?"]),
+        ("Prairimètre", a["Prairimètre"], [r"Prairimètre"]),
+        ("Ratio officiel", a["Ratio officiel"], [r"ratios? officiels?"]),
+        ("Retournée", "labourée, puis déclarée en culture.",
+         [r"retourn(?:ée|ées|és|é)", r"retournements?"]),
+        ("RPG", "registre parcellaire graphique : la carte des parcelles déclarées à la PAC (IGN).",
+         [r"RPG"]),
+        ("Sandre", "service national des données sur l'eau ; il publie les aires de captage.",
+         [r"Sandre"]),
+        ("Sentinel-2", "satellites européens (programme Copernicus) qui photographient la Normandie "
+                       "tous les 5 jours, avec des pixels de 10 m.", [r"Sentinel-2"]),
+        ("Sortie de la déclaration", "plus dans le registre ; l'herbe peut être encore là.",
+         [r"sorties? de la déclaration"]),
+        ("Statistique agricole annuelle", "enquête du ministère de l'Agriculture.",
+         [r"statistique agricole(?: annuelle)?"]),
+        ("ZNIEFF", "inventaire de milieux naturels, sans effet sur le labour.", [r"ZNIEFF"]),
+    ]
+
+
+def bulles_glossaire():
+    """Une bulle sur chaque mot du glossaire, dans toutes les pages : le mot est souligné en
+    pointillé et sa définition s'affiche au survol.
+
+    Le texte des pages n'est pas modifié (Streamlit le redessine à chaque interaction) : les mots
+    sont repérés par le navigateur et soulignés avec l'API CSS Custom Highlight, et la bulle est un
+    élément à part, posé au-dessus de la page. Sans cette API (vieux navigateur), la page reste
+    lisible, sans les bulles."""
+    import json
+    termes = [{"mot": m, "def": d, "formes": f} for m, d, f in glossaire() if f]
+    # Le script ne doit prendre aucune place dans la page : son conteneur est masqué
+    st.html("<style>.st-key-glossaire_js {display:none}</style>")
+    with st.container(key="glossaire_js"):
+        _script_glossaire(termes)
+
+
+def _script_glossaire(termes):
+    # Streamlit écarte un script qui contient « < » (pris pour une balise) : le script est donc
+    # passé en base64, décodé en UTF-8 puis exécuté par le navigateur
+    import base64
+    import json
+    js = """
+(() => {
+  const TERMES = %s;
+  const w = window, doc = document;
+  if (!w.CSS || !CSS.highlights || !w.Highlight) return;
+  const motif = new RegExp("(?<![\\\\p{L}\\\\p{N}-])(?:" + TERMES.map((t, i) =>
+      "(" + t.formes.join("|") + ")").join("|") + ")(?![\\\\p{L}\\\\p{N}-])", "giu");
+  const IGNORER = "code, pre, a, button, input, textarea, svg, script, style, [data-testid='stHeader'],"
+      + " [data-testid='stSidebar'], [class*='st-key-glossaire_liste'], .gl-bulle, [role='tooltip'],"
+      + " [data-testid='stTooltipContent'], .equipe, [data-testid='stTabs'] [role='tab']";
+  let zones = [];  // {range, terme}
+  const souligne = new Highlight();
+  CSS.highlights.set("glossaire", souligne);
+  if (!doc.getElementById("gl-style")) {
+    const s = doc.createElement("style"); s.id = "gl-style";
+    s.textContent = "::highlight(glossaire){text-decoration:underline dotted;"
+      + "text-decoration-thickness:1.5px;text-underline-offset:3px;text-decoration-color:#2a78d6}"
+      + ".gl-bulle{position:fixed;z-index:1000000;max-width:320px;padding:.5rem .7rem;border-radius:8px;"
+      + "background:#262730;color:#fafafa;font:400 .82rem/1.35 'Source Sans Pro',sans-serif;"
+      + "box-shadow:0 4px 14px rgba(0,0,0,.25);pointer-events:none;display:none}"
+      + ".gl-bulle b{display:block;margin-bottom:.1rem}";
+    doc.head.appendChild(s);
+  }
+  let bulle = doc.querySelector(".gl-bulle");
+  if (!bulle) { bulle = doc.createElement("div"); bulle.className = "gl-bulle"; doc.body.appendChild(bulle); }
+
+  function scanner() {
+    zones = []; souligne.clear();
+    const racines = doc.querySelectorAll("[data-testid='stMain'], [role='dialog']");
+    racines.forEach(racine => {
+      const marche = doc.createTreeWalker(racine, NodeFilter.SHOW_TEXT, {acceptNode: n =>
+        !n.nodeValue.trim() || !n.parentElement || n.parentElement.closest(IGNORER)
+          ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT});
+      const vus = new Map();  // un seul soulignement par mot et par bloc de texte
+      for (let n = marche.nextNode(); n; n = marche.nextNode()) {
+        const bloc = n.parentElement.closest("[data-testid='stElementContainer'], [data-testid='stExpander'] summary") || racine;
+        if (!vus.has(bloc)) vus.set(bloc, new Set());
+        motif.lastIndex = 0;
+        for (let m; (m = motif.exec(n.nodeValue));) {
+          const i = m.slice(1).findIndex(x => x !== undefined);
+          if (i < 0) continue;
+          const r = doc.createRange();
+          r.setStart(n, m.index); r.setEnd(n, m.index + m[0].length);
+          zones.push({range: r, terme: TERMES[i]});
+          if (!vus.get(bloc).has(i)) { vus.get(bloc).add(i); souligne.add(r); }
+        }
+      }
+    });
+  }
+  let attente = null;
+  const plusTard = () => { clearTimeout(attente); attente = setTimeout(scanner, 250); };
+  if (w.__glObs) w.__glObs.disconnect();
+  // la bulle elle-même change à chaque survol : ce n'est pas une raison de relire la page
+  w.__glObs = new MutationObserver(l => { if (l.some(m => !bulle.contains(m.target))) plusTard(); });
+  w.__glObs.observe(doc.body, {childList: true, subtree: true, characterData: true});
+  scanner();
+
+  function cacher() { bulle.style.display = "none"; }
+  function survol(e) {
+    const x = e.clientX, y = e.clientY;
+    for (const z of zones) {
+      if (!z.range.startContainer.isConnected) continue;
+      for (const b of z.range.getClientRects()) {
+        if (x >= b.left && x <= b.right && y >= b.top - 2 && y <= b.bottom + 2) {
+          bulle.innerHTML = "<b></b><span></span>";
+          bulle.firstChild.textContent = z.terme.mot;
+          bulle.lastChild.textContent = z.terme.def;
+          bulle.style.display = "block";
+          const l = Math.min(b.left, w.innerWidth - bulle.offsetWidth - 8);
+          const haut = b.top - bulle.offsetHeight - 6;
+          bulle.style.left = Math.max(8, l) + "px";
+          bulle.style.top = (haut > 4 ? haut : b.bottom + 6) + "px";
+          return;
+        }
+      }
+    }
+    cacher();
+  }
+  let image = 0;
+  if (w.__glSurvol) doc.removeEventListener("mousemove", w.__glSurvol);
+  w.__glSurvol = e => { cancelAnimationFrame(image); image = requestAnimationFrame(() => survol(e)); };
+  doc.addEventListener("mousemove", w.__glSurvol, {passive: true});
+  if (!w.__glDefile) { w.__glDefile = true;
+    doc.addEventListener("scroll", () => { const b = doc.querySelector(".gl-bulle"); if (b) b.style.display = "none"; },
+                         {passive: true, capture: true}); }
+})();
+""" % json.dumps(termes, ensure_ascii=False)
+    code = base64.b64encode(js.encode("utf-8")).decode()
+    st.html(f'<script>(0, eval)(new TextDecoder().decode(Uint8Array.from(atob("{code}"), c => c.charCodeAt(0))));'
+            '</script>', unsafe_allow_javascript=True)
+
+
+GAIN_MINIMUM_HA = 5   # en dessous, le gain pèse moins qu'une parcelle : ce n'est pas un exemple
 PERTE_MAXIMUM_HA = 1   # en dessous, un écart de contour d'une année à l'autre, pas une perte
 
 
@@ -308,6 +474,31 @@ def selection_carte(evenement, couche, champ):
         if objets:
             return objets[0]["properties"].get(champ)
     return None
+
+
+# --- Titres et légendes des figures ----------------------------------------------------------
+# Toutes les cartes et tous les graphiques de l'appli ont un titre au-dessus ; les légendes des cartes
+# sont placées en dessous.
+
+def titre_figure(texte, cible=None, aide=None):
+    """Le titre d'une carte ou d'un graphique, au-dessus de la figure (même style partout)."""
+    (cible or st).markdown(f"<div style='font-weight:700;font-size:1.02rem;margin:0 0 .15rem'>{texte}</div>",
+                           unsafe_allow_html=True, help=aide)
+
+
+def legende(elements, note="", cible=None):
+    """La légende d'une carte, sous la carte : elements = [(couleur, libellé, forme ● ou ■)]."""
+    morceaux = [f"<span style='white-space:nowrap'><span style='color:{c};font-size:1.1em'>{forme}</span> {lib}</span>"
+                for c, lib, forme in elements]
+    (cible or st).markdown(
+        "<div style='font-size:.88rem;margin-top:-.4rem;display:flex;flex-wrap:wrap;gap:.3rem 1.1rem'>"
+        + "".join(morceaux) + (f"<span style='opacity:.7'>{note}</span>" if note else "") + "</div>",
+        unsafe_allow_html=True)
+
+
+def espace(rem):
+    """Un espace vertical, pour aérer une page ou aligner deux colonnes."""
+    st.html(f"<div style='height:{rem}rem'></div>")
 
 
 # --- Graphiques ------------------------------------------------------------------------------

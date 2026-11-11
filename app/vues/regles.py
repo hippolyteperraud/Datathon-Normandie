@@ -9,7 +9,7 @@ import streamlit as st
 
 from commun import (FLUX_COULEURS, GAIN_MINIMUM_HA, HORS, bornes, communes_carte, communes_exemples,
                     comparaison, deck, evaluation, exiger_sorties, ha, hex_rgb, nombre, selection_carte,
-                    table)
+                    table, titre_figure)
 from prairimetre.config import RECENT
 from references import RATIOS
 
@@ -30,7 +30,7 @@ N_COMMUNES = 211  # les communes où l'on retourne le plus (la moitié du retour
 VERDICTS = {"oui": ("Oui", "green", "#3fb07a"), "un": ("Oui, sur 1 an", "green", "#3fb07a"),
             "non": ("Non", "red", ROUGE), "tot": ("Trop tôt", "gray", GRIS_T),
             "lent": ("Trop lent", "orange", ORANGE)}
-COLS = [0.72, 1.45, 0.1, 1.1]
+COLS = [0.7, 1.32, 0.1, 1.28]
 
 st.html("""<style>
 .rc-c {display:flex; align-items:center; gap:12px}
@@ -45,7 +45,7 @@ st.html("""<style>
 .rc-h {font-size:0.72rem; text-transform:uppercase; letter-spacing:0.06em; opacity:0.55; font-weight:600}
 .rc-idee {font-size:1.25rem; font-weight:800; line-height:1.2; margin:0.15rem 0 0.3rem}
 /* les cadres des lignes (clé « rcl_… ») : marges et espaces resserrés */
-[class*="st-key-rcl_"] {padding: 0.6rem 0.95rem !important;}
+[class*="st-key-rcl_"] {padding: 0.45rem 0.95rem !important;}
 [class*="st-key-rcl_"] [data-testid="stVerticalBlock"] {gap: 0.35rem;}
 [class*="st-key-rcl_"] p {margin-bottom: 0.1rem;}
 [class*="st-key-rcl_"] button {min-height: 1.6rem; padding-top: 0; padding-bottom: 0;}
@@ -55,8 +55,22 @@ st.html("""<style>
 /* Le cadre de l'idée commence au niveau de la première ligne, pas des en-têtes */
 .st-key-idee {margin-top: 41px;}
 .st-key-idee {background: rgba(42,140,90,0.10); border: 1px solid rgba(42,140,90,0.55) !important;
-              border-radius: 0.6rem; padding: 0.9rem 1.1rem !important;}
-.st-key-idee [data-testid="stVerticalBlock"] {gap: 0.55rem;}
+              border-radius: 0.6rem; padding: 0.65rem 1rem !important;}
+.st-key-idee [data-testid="stVerticalBlock"] {gap: 0.3rem;}
+/* Les deux encadrés de droite (l'idée, l'eau) tiennent ensemble à côté des cinq lignes : texte serré */
+.st-key-idee p, .st-key-eau p {line-height: 1.3;}
+/* la colonne ne les écrase pas : le cadre suit toujours son texte */
+.st-key-idee, .st-key-eau {flex-shrink: 0;}
+.st-key-idee .rc-big, .st-key-eau .rc-big {font-size: 1.45rem;}
+.st-key-idee .rc-idee, .st-key-eau .rc-idee {font-size: 1.1rem; margin: 0 0 0.1rem;}
+.st-key-idee .rc-p, .st-key-eau .rc-p {font-size: 0.82rem;}
+/* L'encadré de l'eau : le même, en bleu, juste sous l'idée nouvelle */
+.st-key-eau {background: rgba(42,120,214,0.10); border: 1px solid rgba(42,120,214,0.55) !important;
+             border-radius: 0.6rem; padding: 0.65rem 1rem !important; margin-top: 0.2rem;}
+.st-key-eau [data-testid="stVerticalBlock"] {gap: 0.3rem;}
+.st-key-eau button {min-height: 1.6rem; padding-top: 0; padding-bottom: 0;}
+.rc-non {color:#c2452d; font-weight:700; font-size:0.84rem; line-height:1.25}
+@media (prefers-color-scheme: dark) {.rc-non {color:#ff8a73}}
 [data-testid="stMainBlockContainer"] {padding-top: 3.6rem !important; padding-bottom: 0.3rem !important;}
 [data-testid="stMainBlockContainer"] > div > [data-testid="stVerticalBlock"] {gap: 0.4rem;}
 </style>""")
@@ -91,7 +105,7 @@ def fois(x):
 NOTE = (f"Tout est mesuré sur le registre PAC {a0} → {an}. Les comparaisons montrent ce qui va avec moins de "
         "retournement, pas une preuve de cause. Les recommandations ne sont pas testées sur le terrain. Le "
         "détail de chaque chiffre est dans sa bulle ; les calculs dans Technique → Preuves.")
-gauche, droite = st.columns([2.45, 1], gap="medium")
+gauche, droite = st.columns([2.3, 1.05], gap="medium")
 
 tc = table("communes")
 calc = tc[tc.statut == "calculé"]
@@ -101,17 +115,19 @@ r0 = an - RECENT
 gain, _ = communes_exemples(tc)
 
 
-def carte_communes(couleur, info, legende, aide, cle):
+def carte_communes(couleur, info, legende, aide, cle, titre):
     """Carte des communes en grand (dans une fenêtre) : couleur et info par code INSEE, les autres en
     gris ; un clic sur une commune ouvre sa fiche."""
     g = communes_carte().copy()
     g["couleur"] = [hex_rgb(couleur[k]) if k in couleur else hex_rgb(HORS, 55) for k in g.insee]
     g["valeur"] = g.insee.map(lambda k: info.get(k, ""))
-    st.markdown(legende + f' &nbsp; <span style="color:{HORS}">■</span> les autres', unsafe_allow_html=True,
-                help=aide + " Un clic sur une commune ouvre sa fiche.")
+    titre_figure(titre, aide=aide + " Un clic sur une commune ouvre sa fiche.")
     evt = st.pydeck_chart(deck([(g[["insee", "nom_officiel", "couleur", "valeur", "geometry"]], cle)], g,
                                "<b>{nom_officiel}</b><br/>{valeur}", hauteur=560, zoom=7.1),
                           on_select="rerun", selection_mode="single-object", width="stretch", height=560, key=cle)
+    # La légende sous la carte
+    st.markdown("<div style='font-size:.9rem;margin-top:-.4rem'>" + legende
+                + f' &nbsp; <span style="color:{HORS}">■</span> les autres</div>', unsafe_allow_html=True)
     clic = selection_carte(evt, cle, "insee")
     if clic and clic != st.session_state.get(f"_clic_{cle}"):  # un clic ne compte qu'une fois
         st.session_state[f"_clic_{cle}"] = clic
@@ -127,7 +143,8 @@ def carte_211():
                    f'<span style="color:{ROUGE}">■</span> {nombre(N_COMMUNES)} communes : '
                    f'{nombre(100 * part, 0)} ha sur 100 du retournement de {r0} à {an}',
                    f"Les communes classées par hectares de prairies retournés en culture de {r0} à {an} ; "
-                   f"les {nombre(N_COMMUNES)} premières font la moitié du retournement.", "carte_211")
+                   f"les {nombre(N_COMMUNES)} premières font la moitié du retournement.", "carte_211",
+                   f"Les communes où l'on a retourné le plus de prairies en culture, {r0}→{an}")
 
 
 @st.dialog("Les communes qui recréent de l'herbe", width="large")
@@ -139,7 +156,8 @@ def carte_exemples():
                    f'<span style="color:{VERT}">■</span> {nombre(len(gain))} communes gagnent au moins '
                    f'{GAIN_MINIMUM_HA} ha de prairie sur d\'anciennes cultures ({ha(gain.sum())} en tout)',
                    f"Depuis {a0}, gain net de ce qui a été perdu. Les nouvelles déclarations et les prairies "
-                   "temporaires devenues permanentes ne comptent pas comme un gain.", "carte_exemples")
+                   "temporaires devenues permanentes ne comptent pas comme un gain.", "carte_exemples",
+                   f"Les communes qui ont gagné des prairies sur d'anciennes cultures depuis {a0}")
 
 
 def bouton(texte, ouvrir):
@@ -245,17 +263,20 @@ with droite, st.container(key="idee"):
         a, c_, f_ = int(j.annee_origine.iloc[0]), int(j.coupure.iloc[0]), int(j.fin.iloc[0])
         vieilles = j.loc["prairie permanente", "sur_100"]
         jeune = j.loc[["prairie temporaire", "culture"]]
-        st.html("<div class='rc-h'>Ce qu'on a trouvé</div>")
-        constat(f"{fois(jeune.retourne.sum() / jeune.ha.sum() * 100 / vieilles)} plus",
-                "de retournement pour une prairie devenue permanente depuis peu", ROUGE,
-                f"Prairies permanentes de {c_}, rangées selon ce qu'elles étaient en {a} ; retournées de {c_} à "
-                f"{f_}, sur 100 ha : {nombre(vieilles, 1)} ha si elles étaient déjà prairies permanentes, "
-                f"{nombre(j.loc['prairie temporaire', 'sur_100'], 1)} ha si elles étaient prairies temporaires, "
-                f"{nombre(j.loc['culture', 'sur_100'], 1)} ha si elles étaient cultures. Une prairie temporaire "
-                "devient permanente après 5 ans d'herbe.", vertical=True)
-        constat(f"{nombre(100 * jeune.part_du_retournement.sum(), 0)} sur 100",
-                f"des hectares retournés, alors qu'elles ne font que "
-                f"{nombre(100 * jeune.part_des_prairies.sum(), 0)} ha sur 100 des prairies", ROUGE, vertical=True)
+        # les deux chiffres côte à côte : l'encadré de l'eau tient en dessous, sans dérouler
+        k1, k2 = st.columns(2, gap="small")
+        with k1:
+            constat(f"{fois(jeune.retourne.sum() / jeune.ha.sum() * 100 / vieilles)} plus",
+                    "de retournement pour une jeune prairie permanente", ROUGE,
+                    f"Prairies permanentes de {c_}, rangées selon ce qu'elles étaient en {a} ; retournées de {c_} à "
+                    f"{f_}, sur 100 ha : {nombre(vieilles, 1)} ha si elles étaient déjà prairies permanentes, "
+                    f"{nombre(j.loc['prairie temporaire', 'sur_100'], 1)} ha si elles étaient prairies temporaires, "
+                    f"{nombre(j.loc['culture', 'sur_100'], 1)} ha si elles étaient cultures. Une prairie temporaire "
+                    "devient permanente après 5 ans d'herbe.", vertical=True)
+        with k2:
+            constat(f"{nombre(100 * jeune.part_du_retournement.sum(), 0)} sur 100",
+                    f"des hectares retournés, alors qu'elles font "
+                    f"{nombre(100 * jeune.part_des_prairies.sum(), 0)} sur 100 des prairies", ROUGE, vertical=True)
         autres = jeunes[jeunes.coupure != c_]
         if len(autres):
             r = autres.set_index("origine")
@@ -268,3 +289,44 @@ with droite, st.container(key="idee"):
         st.markdown(f"<span class='rc-r'>Un contrat dès qu'une prairie devient permanente</span>  \n"
                     f"<span class='rc-k'>{ha(jeune.ha.sum())} à suivre, repérables chaque année dans le "
                     "registre PAC</span>", unsafe_allow_html=True)
+
+
+# --- L'eau : plus de nitrates dans les rivières, moins de prairies, sans lien prouvé ---------------
+with droite, st.container(key="eau"):
+    from eau_details import nitrates
+    nit = nitrates()
+    st.html("<div class='rc-h'>L'eau et l'herbe, sur la même décennie</div>"
+            "<div class='rc-idee'>Plus de nitrates, moins de prairies</div>")
+    if nit is None:
+        st.info("Mesures de nitrates absentes : lancer `python scripts/recuperer_hubeau.py`.")
+    else:
+        t, debut, fin, rob, dep = nit
+        hausse, baisse = int((t.sens == "en hausse").sum()), int((t.sens == "en baisse").sum())
+        p_avant, p_apres = f"{debut[0]}-{debut[-1]}", f"{fin[0]}-{fin[-1]}"
+        pire = rob.hasard.max() if len(rob) else 1.0
+        pp0, pp1 = tc[f"pp_{a0}"].sum(), tc[f"pp_{an}"].sum()
+        k1, k2 = st.columns(2, gap="small")
+        with k1:
+            constat(f"+{nombre(t.variation.median(), 1)} mg/L",
+                    f"de nitrates dans les rivières, de {p_avant} à {p_apres}", ROUGE,
+                    f"Médiane des variations, station par station : {hausse} stations en hausse, {baisse} en "
+                    f"baisse, sur les {len(t)} mesurées dans les deux périodes (Hub'Eau). Point de départ : "
+                    f"{nombre(t.avant.median(), 0)} mg/L pour la station du milieu.", vertical=True)
+        with k2:
+            constat(f"−{nombre(100 * (1 - pp1 / pp0), 0)} sur 100",
+                    f"de prairies permanentes de {a0} à {an}", ROUGE,
+                    f"{ha(pp0)} de prairies permanentes déclarées à la PAC en {a0}, {ha(pp1)} en {an} : "
+                    f"{ha(pp1 - pp0, signe=True)}.", vertical=True)
+        if len(rob):
+            st.markdown(f":blue-badge[{hausse} stations en hausse, {baisse} en baisse]",
+                        help="Le résultat ne tient pas au choix des années : "
+                             + " ; ".join(f"{r.avant} → {r.apres} : {r.en_hausse} en hausse, {r.en_baisse} en "
+                                          f"baisse" for r in rob.itertuples())
+                             + ". Autant de hausses par hasard : moins d'une chance sur "
+                             f"{nombre(10 ** int(-__import__('math').log10(pire)))} (test du signe).")
+        st.markdown("<div class='rc-non'>✕ Les deux vont ensemble, mais le lien n'est pas prouvé</div>",
+                    unsafe_allow_html=True,
+                    help="Une prairie retient une partie des nitrates, mais ceux des rivières dépendent aussi des "
+                         "pluies, des engrais, de l'élevage et de l'assainissement. Rien ici ne montre que la "
+                         "perte d'herbe a fait monter les nitrates. Les stations mesurent les rivières, pas l'eau "
+                         "du robinet.")
