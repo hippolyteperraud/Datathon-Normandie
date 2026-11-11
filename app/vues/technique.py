@@ -1,59 +1,17 @@
-"""Technique : ce qui permet de vérifier et de refaire le travail. Les preuves de chaque recommandation
-(et les tests qui les vérifient), les sources, les mots de l'outil, et le bouton qui relance les
-calculs."""
+"""Technique : ce qui permet de vérifier et de refaire le travail. Les preuves des chiffres de l'appli,
+les sources, le glossaire, et les boutons qui relancent les calculs."""
 import re
 
 import altair as alt
 import pandas as pd
 import streamlit as st
 
-from commun import (AXE_FR, CAT, MIN_HA, NEUTRE, OFFICIEL, aides_chiffres, bornes, comparaison,
-                    evaluation, exiger_sorties, ha, manquantes, nombre, pct, table)
-from prairimetre.config import RECENT
+from commun import (AXE_FR, CAT, MIN_HA, OFFICIEL, bornes, evaluation, exiger_sorties, glossaire, ha,
+                    manquantes, nombre, pct, table, titre_figure)
 from prairimetre.donnees import FAMILLES as FAMILLES_ZONAGES
 from prairimetre.sources import SOURCES
 from prairimetre.telecharger import derniere_date
 
-MOTS = {
-    "Aire de captage": "zone dont l'eau rejoint un captage d'eau potable.",
-    "BCAE": "règles de la PAC (la 2 : zones humides et tourbières ; la 9 : prairies sensibles).",
-    "Brut, net": "net = brut moins les prairies apparues dans la même commune.",
-    "Chiffre officiel": aides_chiffres()["Chiffre officiel"],
-    "EPCI": "communauté de communes, d'agglomération ou urbaine.",
-    "MAEC, PSE": "aides pour garder ses prairies.",
-    "Natura 2000": "sites européens protégés.",
-    "OCS GE": "carte de l'occupation du sol (IGN).",
-    "Prairie déclarée": "en herbe depuis au moins 5 ans, déclarée à la PAC.",
-    "Prairimètre": aides_chiffres()["Prairimètre"],
-    "Ratio officiel": aides_chiffres()["Ratio officiel"],
-    "Retournée": "labourée, puis déclarée en culture.",
-    "RPG": "carte des parcelles déclarées à la PAC (IGN).",
-    "Sortie de la déclaration": "plus dans le registre ; l'herbe peut être encore là.",
-    "Statistique agricole annuelle": "enquête du ministère de l'Agriculture.",
-    "ZNIEFF": "inventaire de milieux naturels, sans effet sur le labour.",
-}
-
-NOMS_ZONAGES = {
-    "prairies_sensibles": "Prairies sensibles (BCAE 9)",
-    "bcae_zones_humides_tourbieres": "Zones humides et tourbières (BCAE 2)",
-    "par7_zones_humides_est": "Zones humides, programme nitrates",
-    "natura2000_sic": "Natura 2000, habitats",
-    "natura2000_zps": "Natura 2000, oiseaux",
-    "rnn": "Réserves naturelles nationales", "rnr": "Réserves naturelles régionales",
-    "apb": "Arrêtés de protection de biotope", "cen": "Sites des conservatoires",
-    "zones_humides_dreal": "Zones humides (inventaire DREAL)",
-    "znieff1": "ZNIEFF de type 1",
-    "srce_reservoirs": "Réservoirs de biodiversité (SRCE)",
-    "plu_zone_n": "Zone N des PLU",
-    "aires_alimentation_captages": "Aires de captage d'eau potable",
-    "pnr": "Parcs naturels régionaux",
-}
-FAMILLES = {"regle": "règle qui encadre le labour", "site": "site protégé",
-            "inventaire": "inventaire (sans effet sur le labour)",
-            "aires_alimentation_captages": "acteur (sans règle)", "pnr": "acteur (sans règle)"}
-COULEURS_FAMILLES = {"règle qui encadre le labour": CAT[0], "site protégé": CAT[1],
-                     "inventaire (sans effet sur le labour)": CAT[2],
-                     "acteur (sans règle)": NEUTRE}
 
 NOMS_SOURCES = {
     "rpg": "Registre parcellaire graphique", "pp_officiel": "Couche officielle des prairies",
@@ -83,16 +41,15 @@ GROUPES_SOURCES = {
     "Les communes": ["communes", "epci_noms", "codes_postaux"],
 }
 
-
-def phrase_robustesse(zonage, sujet):
-    """« Pour les règles, le rapport va de 0,18 à 0,24 selon la période : on y retourne moins
-    qu'ailleurs (environ 5 fois moins). » — tiré des tests de robustesse du moteur."""
-    sens, v = comparaison(zonage)
-    if sens is None:
-        return ""
-    return (f" {sujet}, le rapport va de {nombre(v.min(), 2)} à {nombre(v.max(), 2)} selon la "
-            f"période : on y retourne {sens} qu'ailleurs"
-            + (f" (environ {nombre(1 / v.mean(), 0)} fois moins)." if sens == "moins" else "."))
+# Les sources que le moteur ne télécharge pas lui-même (lues à part, ou consultées pour vérifier)
+AUTRES_SOURCES = [
+    ("Images Sentinel-2 (niveau 2A)", "https://planetarycomputer.microsoft.com/dataset/sentinel-2-l2a",
+     "ESA / Copernicus, via Microsoft Planetary Computer", "la vérification par satellite"),
+    ("Photos aériennes (BD ORTHO)", "https://cartes.gouv.fr/rechercher-une-donnee/dataset/IGNF_BD-ORTHO",
+     "IGN", "le contrôle à l'œil des parcelles"),
+    ("Analyses de nitrates des cours d'eau", "https://hubeau.eaufrance.fr/page/api-qualite-cours-deau",
+     "Hub'Eau (OFB, BRGM)", "les nitrates des rivières"),
+]
 
 
 def moy(d, c):
@@ -101,224 +58,129 @@ def moy(d, c):
 
 
 a0, an = bornes()
-pret = not manquantes()  # sans résultats, seul l'onglet Recalculer sert : y lancer le calcul
+pret = not manquantes()  # sans résultats, seul l'onglet Moteur sert : y lancer le calcul
 st.title("Technique")
+# Les questions de l'onglet Preuves sont des menus déroulants : leur titre a la taille d'un titre de
+# niveau 3 (comme un st.subheader), pour se lire comme des titres et non comme du texte courant
+st.html("<style>"
+        "[data-testid='stExpander'] summary {padding-top: .7rem; padding-bottom: .7rem}"
+        "[data-testid='stExpander'] summary p {font-size: 1.5rem; font-weight: 600; line-height: 1.3}"
+        "[data-testid='stExpander'] summary svg {width: 1.6rem; height: 1.6rem}"
+        "</style>")
 if pret:
     exiger_sorties()  # prévient si un registre plus récent que les résultats est en local
-moteur, preuves, sources = st.tabs(["Moteur", "Preuves", "Sources"])
+moteur, preuves, sources, mots = st.tabs(["Moteur", "Preuves", "Sources", "Glossaire"])
 SANS_RESULTATS = "Pas encore de résultats : lancez le calcul dans l'onglet Moteur."
 
-# --- Preuves : ce qui fonde chaque chiffre de l'appli -----------------------------------------------
+# --- Preuves : ce qui fonde les chiffres de l'appli -------------------------------------------------
 with preuves:
     if not pret:
         st.info(SANS_RESULTATS)
     else:
-        st.markdown(f"Les prairies permanentes déclarées en {a0} sont comparées, parcelle par "
-                    f"parcelle, aux déclarations de {an}, en Normandie. Tous les chiffres viennent "
-                    "de cette seule comparaison et se recalculent à chaque nouveau registre. Chaque "
-                    "question ci-dessous fonde un chiffre de l'appli ; chaque réponse a été "
-                    "recalculée autrement pour vérifier qu'elle ne dépend pas d'un choix de méthode.")
+        # 1. La vérification par satellite : principe, exemples, contrôles ----------------------------
+        with st.expander("1. Comment le satellite vérifie-t-il ce que deviennent les prairies ?"):
+            from preuves_satellite import afficher as afficher_satellite
+            afficher_satellite(an)
 
-        # 1. Le compteur en hectares -------------------------------------------------------------------
-        st.subheader("1. Le compteur en hectares est-il fiable ?")
-        bil = table("bilan_direct").loc["région"]
-        solde = bil[("nouvelles_venant_de", "arrivee")] - bil[("disparues_devenues", "depart")]
-        st.markdown(f"Pour les retournements, oui. Le solde {a0}→{an} ({ha(solde, signe=True)}) est à "
-                    f"{ha(abs(solde - OFFICIEL['perte_ha']))} du chiffre officiel "
-                    f"({ha(OFFICIEL['perte_ha'], signe=True)}). Les sorties de la déclaration, elles, "
-                    "demandent une vérification.")
-        s = evaluation("saa", index_col=0)
-        k = evaluation("certitude")
-        g1, g2 = st.columns([3, 2], gap="large")
-        if s is not None:
-            with g1:
-                d = s[["rpg_variation", "saa_variation"]].dropna().reset_index().melt(
-                    "annee", var_name="source", value_name="ha")
-                d["source"] = d.source.map({"rpg_variation": "registre PAC",
-                                            "saa_variation": "statistique agricole"})
-                d["variation"] = d.ha.map(lambda x: ha(x, signe=True))
-                barres = alt.Chart(d).mark_bar(cornerRadiusEnd=3).encode(
-                    x=alt.X("annee:O", title=None, axis=alt.Axis(labelAngle=0, ticks=False, domain=False)),
-                    xOffset=alt.XOffset("source:N", sort=["statistique agricole", "registre PAC"]),
-                    y=alt.Y("ha:Q", title=None,
-                            axis=alt.Axis(labelExpr=AXE_FR + " + ' ha'", tickCount=4, domain=False,
-                                          ticks=False, gridOpacity=0.35)),
-                    color=alt.Color("source:N", title=None,
-                                    legend=alt.Legend(orient="top", labelLimit=0, title="Variation par an :",
-                                                      titleOrient="left"),
-                                    scale=alt.Scale(domain=["statistique agricole", "registre PAC"],
-                                                    range=["#6f6e66", CAT[0]])),
-                    tooltip=[alt.Tooltip("annee:O", title="année"), alt.Tooltip("source:N"),
-                             alt.Tooltip("variation:N")])
-                st.altair_chart(barres.properties(height=220), width="stretch")
-                v = s[["rpg_variation", "saa_variation"]].dropna()
-                if len(v):
-                    y = v.rpg_variation.idxmin()
-                    rpg, saa = v.loc[y, "rpg_variation"], v.loc[y, "saa_variation"]
-                    st.caption(f"En {y}, les prairies déclarées varient de {ha(rpg, signe=True)}, la "
-                               f"statistique agricole annuelle, indépendante de la PAC, de "
-                               f"{ha(saa, signe=True)}"
-                               + (" : une partie de la perte du registre tient aux déclarations."
-                                  if rpg < 0 and saa > rpg / 2 else "."))
-        if k is not None:
-            with g2:
-                o = k[k.source.str.startswith("OCS")]
-                sortie = o[o.groupe == "sorties de la déclaration"]
+        # 2. Le compteur en hectares, et les années qui sortent du lot ----------------------------------
+        with st.expander("2. Le compteur en hectares est-il fiable, même les années qui sortent du lot ?"):
+            bil = table("bilan_direct").loc["région"]
+            solde = bil[("nouvelles_venant_de", "arrivee")] - bil[("disparues_devenues", "depart")]
+            st.markdown(f"Pour les retournements, oui. Le solde {a0}→{an} ({ha(solde, signe=True)}) est à "
+                        f"{ha(abs(solde - OFFICIEL['perte_ha']))} du chiffre officiel "
+                        f"({ha(OFFICIEL['perte_ha'], signe=True)}). Les sorties de la déclaration, elles, "
+                        "demandent une vérification.")
+            s = evaluation("saa", index_col=0)
+            k = evaluation("certitude")
+            g1, g2 = st.columns([3, 2], gap="large")
+            if s is not None:
+                with g1:
+                    d = s[["rpg_variation", "saa_variation"]].dropna().reset_index().melt(
+                        "annee", var_name="source", value_name="ha")
+                    d["source"] = d.source.map({"rpg_variation": "registre PAC",
+                                                "saa_variation": "statistique agricole"})
+                    d["variation"] = d.ha.map(lambda x: ha(x, signe=True))
+                    barres = alt.Chart(d).mark_bar(cornerRadiusEnd=3).encode(
+                        x=alt.X("annee:O", title=None, axis=alt.Axis(labelAngle=0, ticks=False, domain=False)),
+                        xOffset=alt.XOffset("source:N", sort=["statistique agricole", "registre PAC"]),
+                        y=alt.Y("ha:Q", title=None,
+                                axis=alt.Axis(labelExpr=AXE_FR + " + ' ha'", tickCount=4, domain=False,
+                                              ticks=False, gridOpacity=0.35)),
+                        color=alt.Color("source:N", title=None,
+                                        legend=alt.Legend(orient="top", labelLimit=0, title="Variation par an :",
+                                                          titleOrient="left"),
+                                        scale=alt.Scale(domain=["statistique agricole", "registre PAC"],
+                                                        range=["#6f6e66", CAT[0]])),
+                        tooltip=[alt.Tooltip("annee:O", title="année"), alt.Tooltip("source:N"),
+                                 alt.Tooltip("variation:N")])
+                    titre_figure("Variation des prairies chaque année : registre PAC et statistique agricole")
+                    st.altair_chart(barres.properties(height=220), width="stretch")
+                    v = s[["rpg_variation", "saa_variation"]].dropna()
+                    if len(v):
+                        y = v.rpg_variation.idxmin()
+                        rpg, saa = v.loc[y, "rpg_variation"], v.loc[y, "saa_variation"]
+                        st.caption(f"En {y}, les prairies déclarées varient de {ha(rpg, signe=True)}, la "
+                                   f"statistique agricole annuelle, indépendante de la PAC, de "
+                                   f"{ha(saa, signe=True)}"
+                                   + (" : une partie de la perte du registre tient aux déclarations."
+                                      if rpg < 0 and saa > rpg / 2 else "."))
+            if k is not None:
+                with g2:
+                    o = k[k.source.str.startswith("OCS")]
+                    sortie = o[o.groupe == "sorties de la déclaration"]
+                    st.markdown(
+                        f"L'année de leur sortie, {pct(moy(sortie, 'herbe, usage agricole'), 0)} de "
+                        "ces prairies restent des terres agricoles selon la carte d'occupation du sol "
+                        f"de l'IGN, et {pct(moy(sortie, 'artificialisé'), 1)} seulement est construit. "
+                        "Mais cette carte range prairies et cultures dans la même classe : elle ne dit "
+                        "pas si l'herbe est encore là.")
+            sat = None
+            try:
+                from prairimetre.sentinel import DOSSIER as DOSSIER_SAT, bilan as bilan_sat
+                sat = bilan_sat(pd.read_csv(DOSSIER_SAT / "parcelles.csv", dtype={"id_rpg": str}))
+            except FileNotFoundError:
+                pass
+            if sat:
+                s23 = sat["sortie 2023"]
                 st.markdown(
-                    f"L'année de leur sortie, {pct(moy(sortie, 'herbe, usage agricole'), 0)} de "
-                    "ces prairies restent des terres agricoles selon la carte d'occupation du sol "
-                    f"de l'IGN, et {pct(moy(sortie, 'artificialisé'), 1)} seulement est construit. "
-                    "Mais cette carte range prairies et cultures dans la même classe : elle ne dit "
-                    "pas si l'herbe est encore là.")
-        sat = None
-        try:
-            from prairimetre.sentinel import DOSSIER as DOSSIER_SAT, bilan as bilan_sat
-            sat = bilan_sat(pd.read_csv(DOSSIER_SAT / "parcelles.csv", dtype={"id_rpg": str}))
-        except FileNotFoundError:
-            pass
-        if sat:
-            s23 = sat["sortie 2023"]
+                    f"**Les images Sentinel-2 le disent en partie.** Une règle tirée du NDVI de toute "
+                    f"l'année sépare une prairie d'une parcelle labourée : validée sur 40 parcelles dont le "
+                    f"registre donne la réponse, elle se trompe {sat['erreurs_validation']} fois sur "
+                    f"{sat['tranchees_validation']} (une première règle, fixée à l'avance, avait échoué et "
+                    f"a été abandonnée). Sur {s23['parcelles']} prairies sorties de la PAC en 2023, tirées au "
+                    f"hasard, {s23['couvert']} des {s23['tranchees']} tranchées restent vertes toute l'année, "
+                    "sans labour. Preuves, parcelle par parcelle, avec un lien vers la photo aérienne : "
+                    "`verification/sentinel2/preuves.md`.")
+            st.markdown("##### Les années qui sortent du lot")
+            from annees import afficher as afficher_annees
+            afficher_annees()
+
+        # 3. Les limites ----------------------------------------------------------------------------------
+        with st.expander("3. Que ne sait pas l'outil ?"):
+            t, cap = table("communes"), table("captages")
+            n_peu = int((t.statut != "calculé").sum())
             st.markdown(
-                f"**Les images Sentinel-2 le disent en partie.** Une règle tirée du NDVI de toute "
-                f"l'année sépare une prairie d'une parcelle labourée : validée sur 40 parcelles dont le "
-                f"registre donne la réponse, elle se trompe {sat['erreurs_validation']} fois sur "
-                f"{sat['tranchees_validation']} (une première règle, fixée à l'avance, avait échoué et "
-                f"a été abandonnée). Sur {s23['parcelles']} prairies sorties de la PAC en 2023, tirées au "
-                f"hasard, {s23['couvert']} des {s23['tranchees']} tranchées restent vertes toute l'année, "
-                "sans labour. Preuves, parcelle par parcelle, avec un lien vers la photo aérienne : "
-                "`verification/sentinel2/preuves.md`.")
-
-        # 2. Les règles et les zonages -----------------------------------------------------------------
-        z = evaluation("zonages", index_col=0)
-        cl = evaluation("classes", index_col=0)
-        h = evaluation("habitats", index_col=0)
-        if z is not None and cl is not None:
-            st.subheader("2. Les règles retiennent-elles les prairies ?")
+                f"- {n_peu} communes ont moins de {MIN_HA} ha de prairies en {a0}, ou aucune : elles "
+                "ne sont pas classées, et leur fiche en donne la raison.\n"
+                f"- Le maître d'ouvrage n'est pas renseigné par le Sandre pour "
+                f"{int(cap.maitre_ouvrage.isna().sum())} aires de captage sur {len(cap)}, et le service "
+                f"de l'État pour {int(cap.service_etat.isna().sum())} : l'outil propose alors "
+                "l'interlocuteur suivant, jusqu'à l'Agence de l'eau du bassin, toujours connue.\n"
+                "- Le registre ne dit pas ce que devient une prairie sortie de la déclaration ; les "
+                "images satellite montrent si elle reste verte, pas si c'est de l'herbe ou une friche.\n"
+                "- La cible de l'objectif (39 % de la surface agricole) a été fixée sur une ancienne "
+                "version des chiffres ; Agreste a depuis révisé ses séries : l'outil mesure la part dans "
+                "les séries révisées.\n"
+                "- Les parcelles hors Normandie déclarées dans le registre normand sont exclues de tous "
+                "les chiffres.\n"
+                "- La richesse écologique des prairies n'est cartographiée que dans les sites Natura "
+                "2000 de l'ouest de la région.")
             st.markdown(
-                f"Là où elles s'appliquent, oui, mais elles couvrent peu. Dans une même commune, on "
-                f"retourne environ {nombre(1 / z.loc['regle', 'rapport_meme_commune'], 0)} fois moins "
-                f"là où une règle encadre le labour. Ces règles couvrent "
-                f"{pct(cl.loc['règle', 'part_des_prairies'], 0)} des prairies, et "
-                f"{pct(cl.loc['aucun zonage', 'part_du_retournement'], 0)} du retournement a lieu hors "
-                "de tout zonage. Le graphique compare chaque zonage au reste de la même commune : "
-                "sous 1, on y retourne moins ; autour de 1, autant.")
-            d = z.loc[[n for n in NOMS_ZONAGES if n in z.index]].reset_index()
-            petits = d[d.part_des_prairies < 0.01]  # trop peu de prairies pour un rapport fiable
-            d = d[d.part_des_prairies >= 0.01].copy()
-            d["famille"] = d.famille.map(FAMILLES)
-            d["texte"] = d.rapport_meme_commune.map(lambda v: nombre(v, 2))
-            d["retournees"] = d.retourne_ha.map(ha)
-            d["zonage"] = d.zonage.map(NOMS_ZONAGES)
-            ordre = list(d.sort_values("rapport_meme_commune").zonage)  # le plus protecteur en haut
-            barres = alt.Chart(d).mark_bar(cornerRadiusEnd=4, height=16).encode(
-                y=alt.Y("zonage:N", sort=ordre, title=None,
-                        axis=alt.Axis(labelLimit=260, ticks=False, domain=False, labelFontSize=12,
-                                      labelOverlap=False)),
-                x=alt.X("rapport_meme_commune:Q",
-                        title="retournement dans le zonage / reste de la même commune (1 = autant)",
-                        axis=alt.Axis(labels=False, ticks=False, grid=False, domain=False)),
-                color=alt.Color("famille:N", title=None,
-                                legend=alt.Legend(orient="top", labelLimit=0),
-                                scale=alt.Scale(domain=list(COULEURS_FAMILLES),
-                                                range=list(COULEURS_FAMILLES.values()))),
-                tooltip=[alt.Tooltip("zonage:N"), alt.Tooltip("famille:N"),
-                         alt.Tooltip("texte:N", title="rapport"),
-                         alt.Tooltip("retournees:N", title="retournées dedans")])
-            textes = alt.Chart(d).mark_text(align="left", dx=4, fontSize=12, color="#52514e").encode(
-                y=alt.Y("zonage:N", sort=ordre),
-                x="rapport_meme_commune:Q", text="texte:N")
-            regle = alt.Chart(pd.DataFrame({"x": [1]})).mark_rule(color="#52514e", strokeDash=[4, 3]) \
-                .encode(x="x:Q")
-            st.altair_chart((barres + textes + regle).properties(height=32 * len(d)), width="stretch")
-            terrain = evaluation("terrain")
-            a_terrain_egal = ""
-            if terrain is not None and len(terrain) == 3:
-                r = terrain.set_index("comparaison").rapport_meme_commune
-                a_terrain_egal = (
-                    f" Pour séparer les deux, on compare à terrain égal : les prairies d'inventaire, "
-                    f"sans aucune règle, sont déjà {nombre(1 / r.iloc[0], 1)} fois moins retournées ; "
-                    f"mais dans les sites Natura 2000, les prairies sensibles (interdiction) le sont "
-                    f"{nombre(1 / r.iloc[1], 0)} fois moins que les autres prairies du site, et dans les "
-                    f"zones humides {nombre(1 / r.iloc[2], 0)} fois moins. Le terrain compte, et "
-                    "l'interdiction agit en plus.")
-            notes = ["Les prairies humides sont aussi plus dures à labourer, et les prairies sensibles "
-                     "ont été désignées parmi des prairies déjà en place." + a_terrain_egal
-                     + phrase_robustesse("regle", "Pour les règles")
-                     + phrase_robustesse("aires_alimentation_captages",
-                                         "Pour les aires de captage")]
-            if len(petits):
-                notes.append("Non représentés, faute de prairies : "
-                             + ", ".join(petits.zonage.map(NOMS_ZONAGES).str.lower()) + ".")
-            st.caption(" ".join(notes))
-            if h is not None:
-                tot = h.loc["total"]
-                st.markdown(
-                    f"Les prairies remarquables connues tiennent : sur {ha(tot.en_prairie_declaree_ha)} "
-                    f"d'habitats prairiaux d'intérêt européen déclarés en {a0} dans les sites Natura "
-                    f"2000 du Calvados, de la Manche et de l'Orne, {ha(tot.retourne_ha)} ont été "
-                    "retournés. Les pertes touchent la prairie ordinaire.")
-
-        # 3. La concentration ----------------------------------------------------------------------------
-        c = evaluation("concentration", index_col=0)
-        if c is not None:
-            st.subheader("3. Les retournements sont-ils concentrés ?")
-            r = c.loc["retourne_recent"]
-            texte = (f"Oui : 10 % des communes portent {pct(r.part_top_10pct, 0)} du retournement "
-                     f"récent, et {int(r.communes_pour_50pct)} communes en portent la moitié. Une "
-                     "liste courte suffit donc à toucher l'essentiel.")
-            sens = evaluation("sensibilite")
-            if sens is not None:
-                rec = sens[sens.parametre.str.startswith("période")]
-                texte += (f" Elle est stable : parmi les 50 communes qui retournent le plus en "
-                          f"{RECENT} ans, "
-                          + " et ".join(f"{int(n)} y restent avec {int(v)} ans"
-                                        for v, n in zip(rec.valeur,
-                                                        rec.communes_communes_avec_reference)
-                                        if int(v) != RECENT) + ".")
-            st.markdown(texte)
-            p = evaluation("prediction", index_col=0)
-            if p is not None:
-                st.caption(f"On ne peut pas prévoir les retournements : classer les communes sur la "
-                           f"première moitié de la période retrouve "
-                           f"{pct(p.capture_top_10pct.iloc[0], 0)} des retournements de "
-                           f"{p.periode_testee.iloc[0].replace('-', '–')} dans le premier dixième, "
-                           f"autant que la simple surface en prairie "
-                           f"({pct(p.capture_top_10pct.iloc[1], 0)}). La liste repose donc sur ce "
-                           "qui est observé, et se refait à chaque registre.")
-
-        st.subheader("4. Le calcul est-il reproductible ?")
-        st.markdown(
-            "Oui. À chaque nouvelle année, le moteur contrôle le registre téléchargé (projection, "
-            "colonnes, surfaces, cohérence avec l'année précédente) avant tout calcul. Le 25 "
-            "octobre 2026, le registre 2025 retéléchargé et recalculé de bout en bout a redonné "
-            "exactement les mêmes résultats ; le 27 octobre, toutes les données retéléchargées "
-            "avec `importer_donnees.py` étaient identiques, à une aire de captage près, publiée "
-            "entre-temps par le Sandre. Des tests automatisés vérifient le calcul des surfaces et "
-            "des catégories (`python -m unittest discover tests`).")
-
-        st.subheader("5. Que ne sait pas l'outil ?")
-        t, cap = table("communes"), table("captages")
-        n_peu = int((t.statut != "calculé").sum())
-        st.markdown(
-            f"- {n_peu} communes ont moins de {MIN_HA} ha de prairies en {a0}, ou aucune : elles "
-            "ne sont pas classées, et leur fiche en donne la raison.\n"
-            f"- Le maître d'ouvrage n'est pas renseigné par le Sandre pour "
-            f"{int(cap.maitre_ouvrage.isna().sum())} aires de captage sur {len(cap)}, et le service "
-            f"de l'État pour {int(cap.service_etat.isna().sum())} : l'outil propose alors "
-            "l'interlocuteur suivant, jusqu'à l'Agence de l'eau du bassin, toujours connue.\n"
-            "- Le registre ne dit pas ce que devient une prairie sortie de la déclaration ; les "
-            "images satellite montrent si elle reste verte, pas si c'est de l'herbe ou une friche.\n"
-            "- La cible de l'objectif (39 % de la surface agricole) a été fixée sur une ancienne "
-            "version des chiffres ; Agreste a depuis révisé ses séries : l'outil mesure la part dans "
-            "les séries révisées.\n"
-            "- Les parcelles hors Normandie déclarées dans le registre normand sont exclues de tous "
-            "les chiffres.\n"
-            "- La richesse écologique des prairies n'est cartographiée que dans les sites Natura "
-            "2000 de l'ouest de la région.")
-
-        st.subheader("6. Pourquoi certaines années sortent-elles du lot ?")
-        from annees import afficher as afficher_annees
-        afficher_annees()
+                "- Les nitrates des rivières montent, mais rien ici ne relie cette hausse à la perte de "
+                "prairies : les pluies, les engrais, l'élevage et l'assainissement jouent aussi. Il "
+                "faudrait compter les prairies en amont de chaque station de mesure, année par année.\n"
+                "- Les stations mesurent les rivières, pas l'eau du robinet : l'eau potable vient souvent "
+                "de nappes souterraines et elle est traitée avant d'être distribuée.")
 
 # --- Sources : rangées par usage, une ligne chacune -------------------------------------------------
 with sources:
@@ -339,20 +201,35 @@ with sources:
             colonne.markdown(f"**{titre}**\n" + "\n".join(ligne_source(n) for n in noms))
     st.caption("Toutes ouvertes (Licence Ouverte 2.0). `python importer_donnees.py` les retélécharge "
                "et les trace dans data/manifest.json.")
+    g, d = st.columns(2, gap="large")
+    g.markdown("**Le satellite, les photos aériennes et l'eau** (lus à part du moteur)\n"
+               + "\n".join(f"- [{nom}]({lien}), {qui} : {objet}" for nom, lien, qui, objet in AUTRES_SOURCES))
     from references import AGRICULTEUR_ACTIF, FIN_AUTORISATION_2019, OBJECTIF_REGIONAL, RATIOS
-    textes = [(OBJECTIF_REGIONAL["texte"], OBJECTIF_REGIONAL["lien"], "l'objectif 2030")] + [
+    textes = [(OBJECTIF_REGIONAL["texte"], OBJECTIF_REGIONAL["lien"], "l'objectif 2030"),
+              # le Journal officiel du jour de parution (le texte seul n'a pas encore de lien stable)
+              (OFFICIEL["source"], "https://www.legifrance.gouv.fr/jorf/jo/2026/09/18/0218",
+               "le chiffre officiel")] + [
         (r["texte"], r["lien"], f"ratio de prairies {r['annee']}") for r in RATIOS] + [
+        ("Règlement délégué (UE) 2022/126, article 48", "https://eur-lex.europa.eu/eli/reg_del/2022/126/oj",
+         "les seuils du ratio"),
         (AGRICULTEUR_ACTIF["texte"], AGRICULTEUR_ACTIF["lien"], "sorties de 2023, agriculteur actif"),
         (FIN_AUTORISATION_2019["texte"], FIN_AUTORISATION_2019["lien"],
-         "fin du régime d'autorisation en 2019")]
-    st.markdown("**Textes officiels : l'objectif et les années à part**\n"
-                + "\n".join(f"- [{t}]({lien}) : {objet}" for t, lien, objet in textes))
+         "fin du régime d'autorisation en 2019"),
+        ("Directive (UE) 2020/2184", "https://eur-lex.europa.eu/eli/dir/2020/2184/oj",
+         "la limite de 50 mg/L de nitrates dans l'eau potable")]
+    d.markdown("**Textes officiels**\n"
+               + "\n".join(f"- [{t}]({lien}) : {objet}" for t, lien, objet in textes))
 
-    st.markdown("**Les mots de l'outil**")
-    lignes = [f"**{mot}** : {sens}" for mot, sens in MOTS.items()]
+# --- Glossaire : les mots de l'outil (aussi en bulle, au survol, dans toutes les pages) ------------
+with mots:
+    st.caption("Dans toute l'appli, ces mots sont soulignés en pointillé : leur définition s'affiche au "
+               "survol.")
+    lignes = [f"**{mot}** : {sens}" for mot, sens, _ in glossaire()]
     milieu = (len(lignes) + 1) // 2
-    for colonne, partie in zip(st.columns(2, gap="large"), (lignes[:milieu], lignes[milieu:])):
-        colonne.markdown("  \n".join(partie))
+    # les conteneurs « glossaire_liste… » : pas de bulle sur les mots de la liste elle-même
+    for i, (colonne, partie) in enumerate(zip(st.columns(2, gap="large"), (lignes[:milieu], lignes[milieu:]))):
+        with colonne, st.container(key=f"glossaire_liste_{i}"):
+            st.markdown("  \n".join(partie))
 
 # --- Moteur : trois mises à jour, un bouton chacune ------------------------------------------------------
 with moteur:

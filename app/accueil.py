@@ -15,7 +15,7 @@ for chemin in (ICI.parent, ICI):  # le moteur (prairimetre) et les modules de l'
 
 import streamlit as st  # noqa: E402
 
-from commun import equipe  # noqa: E402
+from commun import bulles_glossaire, equipe  # noqa: E402
 
 # Le logo (fond blanc arrondi : lisible en thème clair comme sombre) et son emblème pour l'onglet du
 # navigateur, tirés de « Prairimètre, logo prairie moderne.png »
@@ -30,6 +30,9 @@ page = st.navigation([
     st.Page("vues/technique.py", title="Technique", icon=":material/build:"),
 ], position="top")  # le menu est un bandeau en haut de la page, toujours visible
 equipe()
+# Les mots du glossaire, définis au survol, dans toutes les pages (avant la page : une page peut
+# s'arrêter en route avec st.stop)
+bulles_glossaire()
 # Moins de vide en haut de page : chaque onglet doit tenir sur un écran de portable
 st.html("<style>[data-testid='stMainBlockContainer'] {padding-top: 4.2rem; padding-bottom: 2rem}"
         "h1 {padding-top: 0.4rem !important}"

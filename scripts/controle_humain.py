@@ -191,7 +191,7 @@ def fiche(r, geo, imgs):
         "ign": photo_ign(geo4326, cadre), "s2": s2,
         "ndvi": [[int(pd.Timestamp(d).dayofyear), round(float(v), 3)]
                  for d, v in zip(propres.date, propres.ndvi)],
-        "lien_ign": (f"https://www.geoportail.gouv.fr/carte?c={lon},{lat}&z=17"
+        "lien_ign": (f"https://cartes.gouv.fr/explorer-les-cartes/?c={lon},{lat}&z=17"
                      "&l0=ORTHOIMAGERY.ORTHOPHOTOS::GEOPORTAIL:OGC:WMTS(1)&permalink=yes"),
         "lien_s2": f"https://browser.dataspace.copernicus.eu/?zoom=16&lat={lat}&lng={lon}",
     }
@@ -257,7 +257,7 @@ def comparer(fichiers):
         for _, x in desaccords.iterrows():
             print(f"  {x.id_rpg} : code « {x.etat} », vu « {REPONSES[x.reponse]} » "
                   f"{('— ' + x.commentaire) if isinstance(x.commentaire, str) and x.commentaire else ''}"
-                  f"\n    https://www.geoportail.gouv.fr/carte?c={x.longitude},{x.latitude}&z=17"
+                  f"\n    https://cartes.gouv.fr/explorer-les-cartes/?c={x.longitude},{x.latitude}&z=17"
                   "&l0=ORTHOIMAGERY.ORTHOPHOTOS::GEOPORTAIL:OGC:WMTS(1)&permalink=yes")
     indet = vu[vu.etat == "indéterminé"]
     if len(indet):

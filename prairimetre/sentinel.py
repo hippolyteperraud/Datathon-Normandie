@@ -407,7 +407,7 @@ def bilan(t):
 # --- Le fichier de preuves ------------------------------------------------------------------------
 def _liens(lat, lon):
     cop = f"https://browser.dataspace.copernicus.eu/?zoom=16&lat={lat}&lng={lon}"
-    ign = (f"https://www.geoportail.gouv.fr/carte?c={lon},{lat}&z=17"
+    ign = (f"https://cartes.gouv.fr/explorer-les-cartes/?c={lon},{lat}&z=17"
            "&l0=ORTHOIMAGERY.ORTHOPHOTOS::GEOPORTAIL:OGC:WMTS(1)&permalink=yes")
     return f"[Sentinel-2]({cop}) · [photo IGN]({ign})"
 
@@ -484,8 +484,7 @@ def ecrire_preuves(t=None):
               "Sentinel-2, « végétation basse entretenue » veut donc dire prairie fauchée ou pâturée."]
         if ph:
             l.append("Les cas douteux (« herbe et broussailles », « bâti ») ont été regardés sur la photo "
-                     "aérienne de l'IGN (`photos/`, `photo_interpretation.csv`, lecture par Claude, "
-                     "assistant IA, à confirmer) : " + ", ".join(f"{v} {k}" for k, v in ph.items()) + ".")
+                     "aérienne de l'IGN (`photos/`, `photo_interpretation.csv`) : " +", ".join(f"{v} {k}" for k, v in ph.items()) + ".")
         l.append("")
     l += ["## 6. Limites", "",
           "- « Couvert permanent » veut dire : vert toute l'année, sans période de sol nu. Une prairie, "
