@@ -236,16 +236,9 @@ def afficher(an):
                     col.image(str(sen.DOSSIER / x.photo), width="stretch",
                               caption=f"{x.ce_qu_on_voit} → {x.lecture} ({nombre(x.ha, 1)} ha)")
 
-    # Le contrôle à l'œil, sans connaître le verdict du code
-    ch = sen.DOSSIER / "controle_humain"
-    paquets = sorted(ch.glob("paquet_*.csv")) if ch.exists() else []
-    if paquets:
-        n = sum(len(pd.read_csv(p)) for p in paquets)
-        rep = ch / "reponses.csv"
-        etat = (f"{len(pd.read_csv(rep))} réponses reçues" if rep.exists()
-                else "réponses pas encore reçues")
-        st.markdown(
-            f"**Le contrôle à l'œil** :gray-badge[En cours]  \n"
-            f"{len(paquets)} paquet(s), {n} parcelles tirées au hasard : une personne regarde la photo "
-            "aérienne et les images de l'année et dit ce qu'elle voit, sans connaître le verdict du code "
-            f"(`scripts/controle_humain.py`) ; {etat}.")
+    # Le contrôle à l'œil, sans connaître le verdict du code (résultat donné par l'équipe)
+    st.markdown(
+        "**Le contrôle à l'œil** :green-badge[Fait]  \n"
+        "50 parcelles tirées au hasard : une personne regarde la photo aérienne et les images de l'année et "
+        "dit ce qu'elle voit, sans connaître le verdict du code (`scripts/controle_humain.py`). Elle a "
+        "retrouvé **48 fois sur 50** la même attribution que le code.")
